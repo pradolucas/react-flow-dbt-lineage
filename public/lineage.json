@@ -54,6 +54,11 @@
                     "model.my_project.stg_customers.first_name",
                     "model.my_project.stg_customers.last_name"
                 ]
+            },
+            "total_orders": {
+                "lineage": [
+                    "model.my_project.stg_orders.order_id"
+                ]
             }
         }
     }
