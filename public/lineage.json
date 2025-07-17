@@ -1,0 +1,60 @@
+{
+    "model.my_project.stg_customers": {
+        "columns": {
+            "customer_id": {
+                "lineage": [
+                    "source.my_project.raw_customers.id"
+                ]
+            },
+            "first_name": {
+                "lineage": [
+                    "source.my_project.raw_customers.name"
+                ]
+            },
+            "last_name": {
+                "lineage": [
+                    "source.my_project.raw_customers.name"
+                ]
+            }
+        }
+    },
+    "model.my_project.stg_orders": {
+        "columns": {
+            "order_id": {
+                "lineage": [
+                    "source.my_project.raw_orders.order_id"
+                ]
+            },
+            "customer_id": {
+                "lineage": [
+                    "source.my_project.raw_orders.customer_id"
+                ]
+            },
+            "order_date": {
+                "lineage": [
+                    "source.my_project.raw_orders.order_date"
+                ]
+            },
+            "status": {
+                "lineage": [
+                    "source.my_project.raw_orders.status"
+                ]
+            }
+        }
+    },
+    "model.my_project.customers": {
+        "columns": {
+            "customer_id": {
+                "lineage": [
+                    "model.my_project.stg_customers.customer_id"
+                ]
+            },
+            "full_name": {
+                "lineage": [
+                    "model.my_project.stg_customers.first_name",
+                    "model.my_project.stg_customers.last_name"
+                ]
+            }
+        }
+    }
+}

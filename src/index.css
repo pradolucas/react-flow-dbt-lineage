@@ -1,0 +1,25 @@
+/* src/index.css */
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Adiciona um estilo sutil aos handles para melhor visualização */
+.react-flow__handle {
+  width: 8px !important;
+  height: 12px !important;
+  border-radius: 2px !important;
+  background-color: #555 !important;
+}
+
+.react-flow__handle-right {
+  right: -6px !important;
+}
+
+.react-flow__handle-left {
+  left: -6px !important;
+}
