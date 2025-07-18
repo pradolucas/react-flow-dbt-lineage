@@ -1,0 +1,48 @@
+{
+  "sources": {
+    "source.my_project.raw_customers": {
+      "metadata": { "name": "raw_customers" },
+      "columns": {
+        "id": { "type": "BIGINT" },
+        "name": { "type": "TEXT" },
+        "email": { "type": "TEXT" }
+      }
+    },
+    "source.my_project.raw_orders": {
+      "metadata": { "name": "raw_orders" },
+      "columns": {
+        "order_id": { "type": "BIGINT" },
+        "customer_id": { "type": "BIGINT" },
+        "order_date": { "type": "DATE" },
+        "status": { "type": "VARCHAR" }
+      }
+    }
+  },
+  "nodes": {
+    "model.my_project.stg_customers": {
+      "metadata": { "name": "stg_customers" },
+      "columns": {
+        "customer_id": { "type": "INTEGER" },
+        "first_name": { "type": "VARCHAR" },
+        "last_name": { "type": "VARCHAR" }
+      }
+    },
+    "model.my_project.stg_orders": {
+      "metadata": { "name": "stg_orders" },
+      "columns": {
+        "order_id": { "type": "INTEGER" },
+        "customer_id": { "type": "INTEGER" },
+        "order_date": { "type": "DATE" },
+        "status": { "type": "VARCHAR" }
+      }
+    },
+    "model.my_project.customers": {
+      "metadata": { "name": "customers" },
+      "columns": {
+        "customer_id": { "type": "INTEGER" },
+        "full_name": { "type": "VARCHAR" },
+        "total_orders": { "type": "INTEGER" }
+      }
+    }
+  }
+}

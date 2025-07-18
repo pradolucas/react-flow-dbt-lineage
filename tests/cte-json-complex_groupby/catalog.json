@@ -1,0 +1,46 @@
+{
+  "nodes": {
+    "source.my_project.raw.raw_customers": {
+      "metadata": { "type": "EXTERNAL TABLE", "schema": "raw", "name": "raw_customers" },
+      "columns": {
+        "id": { "type": "BIGINT", "index": 1, "name": "id" },
+        "name": { "type": "TEXT", "index": 2, "name": "name" },
+        "email": { "type": "TEXT", "index": 3, "name": "email" }
+      }
+    },
+    "source.my_project.raw.raw_events": {
+      "metadata": { "type": "EXTERNAL TABLE", "schema": "raw", "name": "raw_events" },
+      "columns": {
+        "event_id": { "type": "TEXT", "index": 1, "name": "event_id" },
+        "payload": { "type": "JSONB", "index": 2, "name": "payload" }
+      }
+    },
+    "model.my_project.stg_customers": {
+      "metadata": { "type": "BASE TABLE", "schema": "staging", "name": "stg_customers" },
+      "columns": {
+        "customer_id": { "type": "INTEGER", "index": 1, "name": "customer_id" },
+        "first_name": { "type": "VARCHAR", "index": 2, "name": "first_name" },
+        "last_name": { "type": "VARCHAR", "index": 3, "name": "last_name" },
+        "customer_details": { "type": "JSONB", "index": 4, "name": "customer_details" }
+      }
+    },
+    "model.my_project.customers": {
+      "metadata": { "type": "TABLE", "schema": "analytics", "name": "customers" },
+      "columns": {
+        "customer_id": { "type": "INTEGER", "index": 1, "name": "customer_id" },
+        "full_name": { "type": "VARCHAR", "index": 2, "name": "full_name" },
+        "customer_email": { "type": "VARCHAR", "index": 3, "name": "customer_email" },
+        "first_event_id": { "type": "TEXT", "index": 4, "name": "first_event_id" }
+      }
+    },
+    "model.my_project.customer_summary": {
+      "metadata": { "type": "TABLE", "schema": "analytics", "name": "customer_summary" },
+      "columns": {
+        "customer_id": { "type": "INTEGER", "index": 1, "name": "customer_id" },
+        "customer_details": { "type": "JSONB", "index": 2, "name": "customer_details" },
+        "device_type": { "type": "TEXT", "index": 3, "name": "device_type" },
+        "event_count": { "type": "BIGINT", "index": 4, "name": "event_count" }
+      }
+    }
+  }
+}

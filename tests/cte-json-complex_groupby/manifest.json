@@ -1,0 +1,83 @@
+{
+  "nodes": {
+    "source.my_project.raw.raw_customers": {
+      "unique_id": "source.my_project.raw.raw_customers",
+      "package_name": "e_commerce_dbt",
+      "database": "my_project",
+      "schema": "raw",
+      "name": "raw_customers",
+      "resource_type": "source",
+      "columns": {
+        "id": { "name": "id" },
+        "name": { "name": "name" },
+        "email": { "name": "email" }
+      }
+    },
+    "source.my_project.raw.raw_events": {
+      "unique_id": "source.my_project.raw.raw_events",
+      "package_name": "e_commerce_dbt",
+      "database": "my_project",
+      "schema": "raw",
+      "name": "raw_events",
+      "resource_type": "source",
+      "columns": {
+        "event_id": { "name": "event_id" },
+        "payload": { "name": "payload" }
+      }
+    },
+    "model.my_project.stg_customers": {
+      "unique_id": "model.my_project.stg_customers",
+      "package_name": "e_commerce_dbt",
+      "database": "my_project",
+      "schema": "staging",
+      "name": "stg_customers",
+      "resource_type": "model",
+      "depends_on": {
+        "nodes": ["source.my_project.raw.raw_customers"]
+      },
+      "columns": {
+        "customer_id": { "name": "customer_id" },
+        "first_name": { "name": "first_name" },
+        "last_name": { "name": "last_name" },
+        "customer_details": { "name": "customer_details" }
+      },
+      "compiled_code": "SELECT id AS customer_id, SPLIT_PART(name, ' ', 1) AS first_name, SPLIT_PART(name, ' ', 2) AS last_name, JSONB_BUILD_OBJECT('email', email, 'full_name', name) AS customer_details FROM my_project.raw.raw_customers"
+    },
+    "model.my_project.customers": {
+      "unique_id": "model.my_project.customers",
+      "package_name": "e_commerce_dbt",
+      "database": "my_project",
+      "schema": "analytics",
+      "name": "customers",
+      "resource_type": "model",
+      "depends_on": {
+        "nodes": ["model.my_project.stg_customers", "source.my_project.raw.raw_events"]
+      },
+      "columns": {
+        "customer_id": { "name": "customer_id" },
+        "full_name": { "name": "full_name" },
+        "customer_email": { "name": "customer_email" },
+        "first_event_id": { "name": "first_event_id" }
+      },
+      "compiled_code": "WITH customer_events AS (SELECT (payload ->> 'customer_id')::INTEGER AS customer_id, MIN(event_id) AS first_event_id FROM my_project.raw.raw_events GROUP BY 1) SELECT sc.customer_id, sc.customer_details ->> 'full_name' AS full_name, sc.customer_details ->> 'email' AS customer_email, ce.first_event_id FROM my_project.staging.stg_customers sc LEFT JOIN customer_events ce ON sc.customer_id = ce.customer_id"
+    },
+    "model.my_project.customer_summary": {
+      "unique_id": "model.my_project.customer_summary",
+      "package_name": "e_commerce_dbt",
+      "database": "my_project",
+      "schema": "analytics",
+      "name": "customer_summary",
+      "resource_type": "model",
+      "depends_on": {
+        "nodes": ["model.my_project.stg_customers", "source.my_project.raw.raw_events"]
+      },
+      "columns": {
+        "customer_id": { "name": "customer_id" },
+        "customer_details": { "name": "customer_details" },
+        "device_type": { "name": "device_type" },
+        "event_count": { "name": "event_count" }
+      },
+      "compiled_code": "SELECT sc.customer_id, sc.customer_details, (re.payload ->> 'device_type') AS device_type, COUNT(re.event_id) AS event_count FROM my_project.staging.stg_customers sc JOIN my_project.raw.raw_events re ON (re.payload ->> 'customer_id')::INTEGER = sc.customer_id GROUP BY sc.customer_id, sc.customer_details, device_type"
+    }
+  }
+}

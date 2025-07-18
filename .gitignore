@@ -35,5 +35,5 @@ wheels/
 # Virtual environments
 .venv
 
-# Tests
-tests/
+# Backups
+*BAK*
