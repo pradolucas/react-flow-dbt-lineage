@@ -3,41 +3,49 @@
         "columns": {
             "customer_id": {
                 "lineage": [
-                    "source.my_project.raw_customers.id"
+                    "source.my_project.raw.raw_customers.id"
                 ]
             },
             "first_name": {
                 "lineage": [
-                    "source.my_project.raw_customers.name"
+                    "source.my_project.raw.raw_customers.name"
                 ]
             },
             "last_name": {
                 "lineage": [
-                    "source.my_project.raw_customers.name"
+                    "source.my_project.raw.raw_customers.name"
+                ]
+            },
+            "customer_details": {
+                "lineage": [
+                    "source.my_project.raw.raw_customers.email",
+                    "source.my_project.raw.raw_customers.name"
                 ]
             }
         }
     },
-    "model.my_project.stg_orders": {
+    "model.my_project.stg_events": {
         "columns": {
-            "order_id": {
-                "lineage": [
-                    "source.my_project.raw_orders.order_id"
-                ]
-            },
             "customer_id": {
                 "lineage": [
-                    "source.my_project.raw_orders.customer_id"
+                    "source.my_project.raw.raw_events.payload"
                 ]
             },
-            "order_date": {
+            "event_data": {
                 "lineage": [
-                    "source.my_project.raw_orders.order_date"
+                    "source.my_project.raw.raw_events.event_id",
+                    "source.my_project.raw.raw_events.payload"
                 ]
             },
-            "status": {
+            "event_type": {
                 "lineage": [
-                    "source.my_project.raw_orders.status"
+                    "source.my_project.raw.raw_events.payload"
+                ]
+            },
+            "raw_event_json": {
+                "lineage": [
+                    "source.my_project.raw.raw_events.event_id",
+                    "source.my_project.raw.raw_events.payload"
                 ]
             }
         }
@@ -51,13 +59,41 @@
             },
             "full_name": {
                 "lineage": [
-                    "model.my_project.stg_customers.first_name",
-                    "model.my_project.stg_customers.last_name"
+                    "model.my_project.stg_customers.customer_details"
                 ]
             },
-            "total_orders": {
+            "customer_email": {
                 "lineage": [
-                    "model.my_project.stg_orders.order_id"
+                    "model.my_project.stg_customers.customer_details"
+                ]
+            },
+            "first_event_id": {
+                "lineage": [
+                    "source.my_project.raw.raw_events.event_id"
+                ]
+            }
+        }
+    },
+    "model.my_project.customer_summary": {
+        "columns": {
+            "customer_id": {
+                "lineage": [
+                    "model.my_project.stg_customers.customer_id"
+                ]
+            },
+            "customer_details": {
+                "lineage": [
+                    "model.my_project.stg_customers.customer_details"
+                ]
+            },
+            "device_type": {
+                "lineage": [
+                    "model.my_project.stg_events.event_data"
+                ]
+            },
+            "event_count": {
+                "lineage": [
+                    "model.my_project.stg_events.event_data"
                 ]
             }
         }

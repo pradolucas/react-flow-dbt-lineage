@@ -43,6 +43,22 @@
       },
       "compiled_code": "SELECT id AS customer_id, SPLIT_PART(name, ' ', 1) AS first_name, SPLIT_PART(name, ' ', 2) AS last_name, JSONB_BUILD_OBJECT('email', email, 'full_name', name) AS customer_details FROM my_project.raw.raw_customers"
     },
+    "model.my_project.stg_events": {
+      "unique_id": "model.my_project.stg_events",
+      "package_name": "e_commerce_dbt",
+      "database": "my_project",
+      "schema": "staging",
+      "name": "stg_events",
+      "resource_type": "model",
+      "depends_on": {
+        "nodes": ["source.my_project.raw.raw_events"]
+      },
+      "columns": {
+        "customer_id": { "name": "customer_id" },
+        "event_data": { "name": "event_data" }
+      },
+      "compiled_code": "SELECT (payload ->> 'customer_id')::INTEGER AS customer_id, row_to_json((SELECT e FROM (SELECT event_id, payload ->> 'device_type' AS device_type) AS e)) AS event_data FROM my_project.raw.raw_events"
+    },
     "model.my_project.customers": {
       "unique_id": "model.my_project.customers",
       "package_name": "e_commerce_dbt",
@@ -69,7 +85,7 @@
       "name": "customer_summary",
       "resource_type": "model",
       "depends_on": {
-        "nodes": ["model.my_project.stg_customers", "source.my_project.raw.raw_events"]
+        "nodes": ["model.my_project.stg_customers", "model.my_project.stg_events"]
       },
       "columns": {
         "customer_id": { "name": "customer_id" },
@@ -77,7 +93,7 @@
         "device_type": { "name": "device_type" },
         "event_count": { "name": "event_count" }
       },
-      "compiled_code": "SELECT sc.customer_id, sc.customer_details, (re.payload ->> 'device_type') AS device_type, COUNT(re.event_id) AS event_count FROM my_project.staging.stg_customers sc JOIN my_project.raw.raw_events re ON (re.payload ->> 'customer_id')::INTEGER = sc.customer_id GROUP BY sc.customer_id, sc.customer_details, device_type"
+      "compiled_code": "SELECT sc.customer_id, sc.customer_details, (se.event_data ->> 'device_type') AS device_type, COUNT(se.event_data ->> 'event_id') AS event_count FROM my_project.staging.stg_customers sc JOIN my_project.staging.stg_events se ON sc.customer_id = se.customer_id GROUP BY sc.customer_id, sc.customer_details, device_type"
     }
   }
 }

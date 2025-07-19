@@ -1,47 +1,54 @@
 {
-  "sources": {
-    "source.my_project.raw_customers": {
-      "metadata": { "name": "raw_customers" },
-      "columns": {
-        "id": { "type": "BIGINT" },
-        "name": { "type": "TEXT" },
-        "email": { "type": "TEXT" }
-      }
-    },
-    "source.my_project.raw_orders": {
-      "metadata": { "name": "raw_orders" },
-      "columns": {
-        "order_id": { "type": "BIGINT" },
-        "customer_id": { "type": "BIGINT" },
-        "order_date": { "type": "DATE" },
-        "status": { "type": "VARCHAR" }
-      }
-    }
-  },
   "nodes": {
-    "model.my_project.stg_customers": {
-      "metadata": { "name": "stg_customers" },
+    "source.my_project.raw.raw_customers": {
+      "metadata": { "type": "EXTERNAL TABLE", "schema": "raw", "name": "raw_customers" },
       "columns": {
-        "customer_id": { "type": "INTEGER" },
-        "first_name": { "type": "VARCHAR" },
-        "last_name": { "type": "VARCHAR" }
+        "id": { "type": "BIGINT", "index": 1, "name": "id" },
+        "name": { "type": "TEXT", "index": 2, "name": "name" },
+        "email": { "type": "TEXT", "index": 3, "name": "email" }
       }
     },
-    "model.my_project.stg_orders": {
-      "metadata": { "name": "stg_orders" },
+    "source.my_project.raw.raw_events": {
+      "metadata": { "type": "EXTERNAL TABLE", "schema": "raw", "name": "raw_events" },
       "columns": {
-        "order_id": { "type": "INTEGER" },
-        "customer_id": { "type": "INTEGER" },
-        "order_date": { "type": "DATE" },
-        "status": { "type": "VARCHAR" }
+        "event_id": { "type": "TEXT", "index": 1, "name": "event_id" },
+        "payload": { "type": "JSONB", "index": 2, "name": "payload" }
+      }
+    },
+    "model.my_project.stg_customers": {
+      "metadata": { "type": "BASE TABLE", "schema": "staging", "name": "stg_customers" },
+      "columns": {
+        "customer_id": { "type": "INTEGER", "index": 1, "name": "customer_id" },
+        "first_name": { "type": "VARCHAR", "index": 2, "name": "first_name" },
+        "last_name": { "type": "VARCHAR", "index": 3, "name": "last_name" },
+        "customer_details": { "type": "JSONB", "index": 4, "name": "customer_details" }
+      }
+    },
+    "model.my_project.stg_events": {
+      "metadata": { "type": "BASE TABLE", "schema": "staging", "name": "stg_events" },
+      "columns": {
+        "customer_id": { "type": "INTEGER", "index": 1, "name": "customer_id" },
+        "event_data": { "type": "JSONB", "index": 2, "name": "event_data" },
+        "event_type": { "type": "TEXT", "index": 3, "name": "event_type" },
+        "raw_event_json": { "type": "JSONB", "index": 4, "name": "raw_event_json" }
       }
     },
     "model.my_project.customers": {
-      "metadata": { "name": "customers" },
+      "metadata": { "type": "TABLE", "schema": "analytics", "name": "customers" },
       "columns": {
-        "customer_id": { "type": "INTEGER" },
-        "full_name": { "type": "VARCHAR" },
-        "total_orders": { "type": "INTEGER" }
+        "customer_id": { "type": "INTEGER", "index": 1, "name": "customer_id" },
+        "full_name": { "type": "VARCHAR", "index": 2, "name": "full_name" },
+        "customer_email": { "type": "VARCHAR", "index": 3, "name": "customer_email" },
+        "first_event_id": { "type": "TEXT", "index": 4, "name": "first_event_id" }
+      }
+    },
+    "model.my_project.customer_summary": {
+      "metadata": { "type": "TABLE", "schema": "analytics", "name": "customer_summary" },
+      "columns": {
+        "customer_id": { "type": "INTEGER", "index": 1, "name": "customer_id" },
+        "customer_details": { "type": "JSONB", "index": 2, "name": "customer_details" },
+        "device_type": { "type": "TEXT", "index": 3, "name": "device_type" },
+        "event_count": { "type": "BIGINT", "index": 4, "name": "event_count" }
       }
     }
   }

@@ -24,6 +24,13 @@
         "customer_details": { "type": "JSONB", "index": 4, "name": "customer_details" }
       }
     },
+    "model.my_project.stg_events": {
+      "metadata": { "type": "BASE TABLE", "schema": "staging", "name": "stg_events" },
+      "columns": {
+        "customer_id": { "type": "INTEGER", "index": 1, "name": "customer_id" },
+        "event_data": { "type": "JSONB", "index": 2, "name": "event_data" }
+      }
+    },
     "model.my_project.customers": {
       "metadata": { "type": "TABLE", "schema": "analytics", "name": "customers" },
       "columns": {

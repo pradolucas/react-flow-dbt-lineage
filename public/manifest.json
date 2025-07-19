@@ -1,30 +1,36 @@
 {
   "nodes": {
-    "source.my_project.raw_customers": {
+    "source.my_project.raw.raw_customers": {
       "unique_id": "source.my_project.raw.raw_customers",
       "package_name": "e_commerce_dbt",
       "database": "my_project",
       "schema": "raw",
       "name": "raw_customers",
       "resource_type": "source",
+      "tags": [
+        "raw",
+        "customers"
+      ],
       "columns": {
         "id": { "name": "id" },
         "name": { "name": "name" },
         "email": { "name": "email" }
       }
     },
-    "source.my_project.raw_orders": {
-      "unique_id": "source.my_project.raw.raw_orders",
+    "source.my_project.raw.raw_events": {
+      "unique_id": "source.my_project.raw.raw_events",
       "package_name": "e_commerce_dbt",
       "database": "my_project",
       "schema": "raw",
-      "name": "raw_orders",
+      "name": "raw_events",
       "resource_type": "source",
+      "tags": [
+        "raw",
+        "events"
+      ],
       "columns": {
-        "order_id": { "name": "order_id" },
-        "customer_id": { "name": "customer_id" },
-        "order_date": { "name": "order_date" },
-        "status": { "name": "status" }
+        "event_id": { "name": "event_id" },
+        "payload": { "name": "payload" }
       }
     },
     "model.my_project.stg_customers": {
@@ -34,33 +40,42 @@
       "schema": "staging",
       "name": "stg_customers",
       "resource_type": "model",
+      "tags": [
+        "staging",
+        "customers"
+      ],
       "depends_on": {
-        "nodes": ["source.my_project.raw_customers"]
+        "nodes": ["source.my_project.raw.raw_customers"]
       },
       "columns": {
         "customer_id": { "name": "customer_id" },
         "first_name": { "name": "first_name" },
-        "last_name": { "name": "last_name" }
+        "last_name": { "name": "last_name" },
+        "customer_details": { "name": "customer_details" }
       },
-      "compiled_code": "SELECT id AS customer_id, SPLIT_PART(name, ' ', 1) AS first_name, SPLIT_PART(name, ' ', 2) AS last_name FROM my_project.raw.raw_customers"
+      "compiled_code": "SELECT id AS customer_id, SPLIT_PART(name, ' ', 1) AS first_name, SPLIT_PART(name, ' ', 2) AS last_name, JSONB_BUILD_OBJECT('email', email, 'full_name', name) AS customer_details FROM my_project.raw.raw_customers"
     },
-    "model.my_project.stg_orders": {
-      "unique_id": "model.my_project.stg_orders",
+    "model.my_project.stg_events": {
+      "unique_id": "model.my_project.stg_events",
       "package_name": "e_commerce_dbt",
       "database": "my_project",
       "schema": "staging",
-      "name": "stg_orders",
+      "name": "stg_events",
       "resource_type": "model",
+      "tags": [
+        "staging",
+        "events"
+      ],
       "depends_on": {
-        "nodes": ["source.my_project.raw_orders"]
+        "nodes": ["source.my_project.raw.raw_events"]
       },
       "columns": {
-        "order_id": { "name": "order_id" },
         "customer_id": { "name": "customer_id" },
-        "order_date": { "name": "order_date" },
-        "status": { "name": "status" }
+        "event_data": { "name": "event_data" },
+        "event_type": { "name": "event_type" },
+        "raw_event_json": { "name": "raw_event_json" }
       },
-      "compiled_code": "SELECT order_id, customer_id, order_date, status FROM my_project.raw.raw_orders"
+      "compiled_code": "SELECT (re.payload ->> 'customer_id')::INTEGER AS customer_id, row_to_json((SELECT e.* FROM (SELECT re.event_id, re.payload ->> 'device_type' AS device_type) AS e)) AS event_data, re.payload ->> 'event_name' AS event_type, row_to_json(re.*) AS raw_event_json FROM my_project.raw.raw_events AS re"
     },
     "model.my_project.customers": {
       "unique_id": "model.my_project.customers",
@@ -69,15 +84,43 @@
       "schema": "analytics",
       "name": "customers",
       "resource_type": "model",
+      "tags": [
+        "analytics",
+        "customers"
+      ],
       "depends_on": {
-        "nodes": ["model.my_project.stg_customers", "model.my_project.stg_orders"]
+        "nodes": ["model.my_project.stg_customers", "source.my_project.raw.raw_events"]
       },
       "columns": {
         "customer_id": { "name": "customer_id" },
         "full_name": { "name": "full_name" },
-        "total_orders": { "name": "total_orders" }
+        "customer_email": { "name": "customer_email" },
+        "first_event_id": { "name": "first_event_id" }
       },
-      "compiled_code": "WITH customer_orders AS (SELECT customer_id, COUNT(order_id) AS total_orders FROM my_project.staging.stg_orders GROUP BY 1), final AS (SELECT sc.customer_id, CONCAT(sc.first_name, ' ', sc.last_name) AS full_name, co.total_orders FROM my_project.staging.stg_customers AS sc LEFT JOIN customer_orders AS co ON sc.customer_id = co.customer_id) SELECT customer_id, full_name, total_orders FROM final"
+      "compiled_code": "WITH customer_events AS (SELECT (payload ->> 'customer_id')::INTEGER AS customer_id, MIN(event_id) AS first_event_id FROM my_project.raw.raw_events GROUP BY 1) SELECT sc.customer_id, sc.customer_details ->> 'full_name' AS full_name, sc.customer_details ->> 'email' AS customer_email, ce.first_event_id FROM my_project.staging.stg_customers sc LEFT JOIN customer_events ce ON sc.customer_id = ce.customer_id"
+    },
+    "model.my_project.customer_summary": {
+      "unique_id": "model.my_project.customer_summary",
+      "package_name": "e_commerce_dbt",
+      "database": "my_project",
+      "schema": "analytics",
+      "name": "customer_summary",
+      "resource_type": "model",
+      "tags": [
+        "analytics",
+        "customers",
+        "summary"
+      ],
+      "depends_on": {
+        "nodes": ["model.my_project.stg_customers", "model.my_project.stg_events"]
+      },
+      "columns": {
+        "customer_id": { "name": "customer_id" },
+        "customer_details": { "name": "customer_details" },
+        "device_type": { "name": "device_type" },
+        "event_count": { "name": "event_count" }
+      },
+      "compiled_code": "SELECT sc.customer_id, sc.customer_details, (se.event_data ->> 'device_type') AS device_type, COUNT(se.event_data ->> 'event_id') AS event_count FROM my_project.staging.stg_customers sc JOIN my_project.staging.stg_events se ON sc.customer_id = se.customer_id GROUP BY sc.customer_id, sc.customer_details, device_type"
     }
   }
 }
