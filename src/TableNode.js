@@ -10,6 +10,13 @@ const nodeStyle = {
   width: 260,
   fontFamily: "'Inter', sans-serif",
   boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+  transition: 'border-color 0.2s, box-shadow 0.2s', // Adiciona transição para o efeito de highlight
+};
+
+// Novo estilo para o highlight do nó
+const nodeHighlightStyle = {
+    borderColor: '#00A4C9',
+    boxShadow: '0 0 0 2px rgba(0, 164, 201, 0.2), 0 4px 12px rgba(0,0,0,0.1)',
 };
 
 const headerBaseStyle = {
@@ -82,12 +89,19 @@ const tagStyle = {
 
 
 // --- COMPONENTE ---
-export default memo(({ data, isConnectable }) => {
+// Adiciona a propriedade 'selected' que é fornecida pelo React Flow
+export default memo(({ data, isConnectable, selected }) => {
   const isSource = data.resource_type === 'source';
   const headerStyle = isSource ? sourceHeaderStyle : modelHeaderStyle;
 
+  // Combina o estilo base com o estilo de highlight se o nó estiver selecionado
+  const dynamicNodeStyle = {
+      ...nodeStyle,
+      ...(selected ? nodeHighlightStyle : {}),
+  };
+
   return (
-    <div style={nodeStyle}>
+    <div style={dynamicNodeStyle}>
       <div style={headerStyle}>
         <div style={iconStyle}>
             {isSource ? (
@@ -98,7 +112,7 @@ export default memo(({ data, isConnectable }) => {
                     <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
                 </svg>
             ) : (
-                // Ícone para Model (representando uma tabela) - OPÇÃO 1
+                // Ícone para Model (representando uma tabela)
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                     <line x1="3" y1="9" x2="21" y2="9"></line>
