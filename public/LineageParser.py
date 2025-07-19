@@ -19,6 +19,7 @@ def load_json_file(filepath: str) -> Dict[str, Any]:
         print(f"Error: File '{filepath}' is not a valid JSON.")
         exit(1)
 
+
 class LineageParser:
     """
     A class to parse dbt manifest data and generate end-to-end column lineage.
@@ -62,21 +63,60 @@ class LineageParser:
                 table_alias_map[table.alias] = f"{table.catalog}.{table.db}.{table.name}"
         return table_alias_map
 
+    def _look_for_group_by_expr(self, parent_node: lineage.Node) -> Set[str]:
+        """
+        TODO: Unfinished feature to find columns used in GROUP BY clauses.
+        This is a complex task as the columns need to be fully qualified.
+        The current logic is a placeholder and may not be robust.
+        """
+        sources: Set[str] = set()
+        # This logic is experimental and relies on unstable internal structures.
+        if hasattr(parent_node.source, 'parent_select') and hasattr(parent_node.source.parent_select, 'hashable_args'):
+            expres_op_group = [op_exp for op, op_exp in parent_node.source.parent_select.hashable_args if op == 'group']
+            if expres_op_group:
+                for op in expres_op_group[0]:
+                    # Traverse down the expression to find the column
+                    while not isinstance(op, exp.Column) and hasattr(op, 'this'):
+                        op = op.this
+                    if isinstance(op, exp.Column):
+                        # This part is incomplete as qualifying the table name is non-trivial here.
+                        group_by_column, group_by_table = op.name, op.table
+                        sources.add(f"group_by:{group_by_table}.{group_by_column}")
+        return sources
+
     def _trace_lineage_recursively(self, lineage_node: lineage.Node, table_alias_map: Dict[str, str]) -> Set[str]:
         """
         Recursively traverses a lineage graph node to find the ultimate source columns.
+
+        This function acts as the recursive engine. For each parent ("downstream") node
+        of the current lineage node, it first attempts to resolve it as a "base source"
+        (i.e., a physical table or source defined in the manifest).
+
+        If the parent node is successfully resolved, that lineage path ends.
+        If it cannot be resolved (meaning it's an intermediate expression like a column
+        from a CTE), the function calls itself on that parent node to continue
+        traversing deeper down the lineage path until a base source is found.
+
+        Args:
+            lineage_node: The current node in the sqlglot.lineage graph to be explored.
+            table_alias_map: A map from table aliases to full table names for the current query.
+
+        Returns:
+            A set of strings representing all the ultimate source columns found by
+            traversing all downstream paths.
         """
         sources: Set[str] = set()
         for parent_node in lineage_node.downstream:
-            # Try to resolve the parent node directly to a base table source.
+            # Attempt to resolve the parent node as a direct reference to a base table.
+            # This is the "base case" for the recursion.
             base_source = self._resolve_base_source(parent_node, table_alias_map)
             
             if base_source:
-                # If successful, it's a base case. Add the source and stop this path.
+                # If successful, a base table was found. Add it to the results and stop this path.
                 sources.add(base_source)
             else:
-                # If it's not a base source, it's an intermediate expression (like from a CTE).
-                # Recurse deeper to find the ultimate source.
+                # If it's not a base source, it must be an intermediate step (e.g., from a CTE).
+                # Recurse deeper on this parent node to continue the trace.
                 new_sources = self._trace_lineage_recursively(parent_node, table_alias_map)
                 sources.update(new_sources)
                 
@@ -84,7 +124,26 @@ class LineageParser:
     
     def _resolve_base_source(self, parent_node: lineage.Node, table_alias_map: Dict[str, str]) -> Optional[str]:
         """
-        Resolves a lineage node to a source string if it's a base table.
+        Attempts to resolve a lineage node to a fully qualified source column string.
+        This function serves as the "base case" checker for the recursion.
+
+        It checks if the node's expression points directly to a physical table (a model or source)
+        that exists in the dbt manifest. It handles two common cases:
+        1.  `exp.Table`: A direct, fully qualified reference to a table.
+        2.  `exp.Placeholder`: An indirect reference, often from a subquery where an alias is used.
+
+        If the node represents a column from a physical table, it returns the formatted
+        source string (e.g., 'source.project.raw.table.column').
+        If the node represents a column from an intermediate step (like a CTE), it cannot
+        be resolved to a base table and this function returns None, signaling that
+        the recursion must continue.
+
+        Args:
+            parent_node: The lineage node to resolve.
+            table_alias_map: A map from table aliases to full table names for the current query.
+
+        Returns:
+            A formatted source string if a base table is found, otherwise None.
         """
         # Case 1: The source is a direct reference to a base table.
         if isinstance(parent_node.expression, exp.Table):
@@ -94,6 +153,11 @@ class LineageParser:
             from_table_name = parent_node.expression.name
             from_full_tablename = f"{from_catalog}.{from_schema}.{from_table_name}"
             
+            # TODO: Add columns from GROUP BY clauses to the lineage.
+            # group_by_columns = self._look_for_group_by_expr(parent_node)
+            # if group_by_columns:
+            #     sources.update(group_by_columns)
+
             parent_model_id = self.table_to_model_map.get(from_full_tablename.lower())
             if parent_model_id:
                 return f"{parent_model_id}.{from_column_name}"
@@ -107,11 +171,19 @@ class LineageParser:
                 if parent_model_id:
                     return f"{parent_model_id}.{from_column_name}"
         
+        # If neither case matches, it's not a direct source and needs further recursion.
         return None
 
     def _expand_star_statements(self, final_sources: Set[str]) -> List[str]:
         """
         Expands 'table.*' references into a full list of columns for that table.
+        This handles cases like `row_to_json(table.*)`.
+
+        Args:
+            final_sources: A set of source column strings, which may include '.*'.
+
+        Returns:
+            A list of fully expanded source column strings.
         """
         expanded_sources: List[str] = []
         for source in final_sources:
