@@ -14,6 +14,7 @@ import 'reactflow/dist/style.css';
 import TableNode from './TableNode';
 
 // --- FUNÇÕES DE PARSE ---
+// Modificada para ter um fallback para as colunas do catalog.json
 function parseDbtNodes(manifestData, catalogData) {
   const tables = {};
   const allManifestNodes = { ...(manifestData.nodes || {}), ...(manifestData.sources || {}) };
@@ -24,16 +25,30 @@ function parseDbtNodes(manifestData, catalogData) {
     if (node.resource_type !== 'model' && node.resource_type !== 'source') continue;
     const catalogNode = allCatalogNodes[nodeId];
     if (!catalogNode) continue;
-    const columns = Object.keys(node.columns).map((colName) => {
-      const col = node.columns[colName];
-      const catalogCol = catalogNode.columns[colName];
+
+    // --- LÓGICA DE FALLBACK PARA COLUNAS ---
+    // 1. Tenta obter a lista de nomes de colunas do manifest.
+    let columnNames = Object.keys(node.columns || {});
+
+    // 2. Se o manifest não tiver colunas para este nó, usa as colunas do catalog como fallback.
+    if (columnNames.length === 0) {
+        columnNames = Object.keys(catalogNode.columns || {});
+    }
+
+    // 3. Mapeia a lista de nomes de colunas para obter os detalhes de cada uma.
+    const columns = columnNames.map((colName) => {
+      // Busca informações da coluna de ambas as fontes de forma segura.
+      const manifestCol = node.columns?.[colName] || {};
+      const catalogCol = catalogNode.columns?.[colName] || {};
       return {
         id: `${node.name}-${colName}`,
         name: colName,
-        description: col.description || '',
-        type: catalogCol ? catalogCol.type : 'UNKNOWN',
+        description: manifestCol.description || '', // Descrição geralmente vem do manifest.
+        type: catalogCol.type || 'UNKNOWN',     // Tipo geralmente vem do catalog.
       };
     });
+    // --- FIM DA LÓGICA MODIFICADA ---
+    
     tables[nodeId] = {
       id: nodeId,
       label: node.name,

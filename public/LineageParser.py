@@ -19,17 +19,38 @@ def load_json_file(filepath: str) -> Dict[str, Any]:
         print(f"Error: File '{filepath}' is not a valid JSON.")
         exit(1)
 
-
 class LineageParser:
     """
     A class to parse dbt manifest data and generate end-to-end column lineage.
     """
-    def __init__(self, manifest_data: Dict[str, Any]):
+    def __init__(self, manifest_data: Dict[str, Any], catalog_data: Dict[str, Any]):
         """
-        Initializes the parser with manifest data and pre-builds necessary helper maps.
+        Initializes the parser with manifest and catalog data and pre-builds necessary helper maps.
         """
         self.manifest_data = manifest_data
+        self.catalog_data = catalog_data
         self.schema_map, self.table_to_model_map = self._generate_helper_maps()
+
+    def _get_node_columns(self, node_id: str) -> Dict[str, Any]:
+        """
+        Gets the columns for a given node, checking the manifest first and falling back to the catalog.
+
+        Args:
+            node_id: The unique_id of the node.
+
+        Returns:
+            A dictionary of columns for the node, or an empty dictionary if none are found.
+        """
+        # First, try to get columns from the manifest.
+        manifest_node = self.manifest_data.get("nodes", {}).get(node_id, {})
+        columns = manifest_node.get("columns", {})
+        
+        # If no columns are in the manifest, fall back to the catalog.
+        if not columns:
+            catalog_node = self.catalog_data.get("nodes", {}).get(node_id, {})
+            columns = catalog_node.get("columns", {})
+            
+        return columns
 
     def _generate_helper_maps(self) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """
@@ -46,9 +67,12 @@ class LineageParser:
                 if database and schema_name and table_name:
                     full_table_name = f"{database}.{schema_name}.{table_name}"
                     table_to_model_map[full_table_name.lower()] = node_id
+                    
+                    # Use the new helper to get columns with fallback logic.
+                    node_columns = self._get_node_columns(node_id)
                     columns = {
                         col_name: col_info.get("type", "UNKNOWN")
-                        for col_name, col_info in node_info.get("columns", {}).items()
+                        for col_name, col_info in node_columns.items()
                     }
                     schema_map[full_table_name] = columns
         return schema_map, table_to_model_map
@@ -189,8 +213,10 @@ class LineageParser:
         for source in final_sources:
             if source.endswith('.*'):
                 table_unique_id = source.replace('.*', '')
-                if table_unique_id in self.manifest_data["nodes"]:
-                    all_columns = [f"{table_unique_id}.{column}" for column in self.manifest_data["nodes"][table_unique_id]["columns"].keys()]
+                # Use the helper to get columns with fallback logic.
+                node_columns = self._get_node_columns(table_unique_id)
+                if node_columns:
+                    all_columns = [f"{table_unique_id}.{column}" for column in node_columns.keys()]
                     expanded_sources.extend(all_columns)
             else:
                 expanded_sources.append(source)
@@ -218,7 +244,9 @@ class LineageParser:
                     continue
 
                 model_lineage_result: Dict[str, Any] = {"columns": {}}
-                for column_name in node_info.get("columns", {}):
+                # Use the helper to get the list of columns to trace.
+                columns_to_trace = self._get_node_columns(node_id)
+                for column_name in columns_to_trace:
                     try:
                         lineage_node = lineage.lineage(sql=optimized_sql, column=column_name, dialect="postgres")
                         final_sources = self._trace_lineage_recursively(lineage_node, table_alias_map)
@@ -238,10 +266,13 @@ class LineageParser:
 def main() -> None:
     """Main function to execute the parser and print the result."""
     manifest_file = "manifest.json"
-    manifest = load_json_file(manifest_file)
+    catalog_file = "catalog.json"
     
-    # Instantiate the parser and run the analysis
-    parser = LineageParser(manifest)
+    manifest = load_json_file(manifest_file)
+    catalog = load_json_file(catalog_file)
+    
+    # Instantiate the parser with both files and run the analysis
+    parser = LineageParser(manifest, catalog)
     final_lineage = parser.generate_lineage()
     
     if final_lineage:
