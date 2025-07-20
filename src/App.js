@@ -117,8 +117,11 @@ function calculateDynamicLayout(nodesData, edgesData) {
         if (!layers.has(depth)) layers.set(depth, []);
         layers.get(depth).push(nodeId);
     });
-    const HORIZONTAL_SPACING = 420;
-    const VERTICAL_SPACING = 320;
+    
+    // Increased spacing to prevent collisions when expanding nodes.
+    const HORIZONTAL_SPACING = 480;
+    const VERTICAL_SPACING = 400;
+
     const positionedNodes = [];
     Array.from(layers.keys()).sort((a,b) => a - b).forEach(depth => {
         const layerNodes = layers.get(depth);
