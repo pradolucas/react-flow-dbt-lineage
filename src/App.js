@@ -1,6 +1,6 @@
 // src/App.js
 
-// --- IMPORTAÇÕES ---
+// --- IMPORTS ---
 import React, { useState, useCallback, useEffect } from 'react';
 import ReactFlow, {
   addEdge,
@@ -9,12 +9,12 @@ import ReactFlow, {
   Background,
   Controls,
   MarkerType,
-  MiniMap, // Importa o componente do Minimapa
+  MiniMap, // Imports the MiniMap component
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import TableNode from './TableNode';
 
-// --- FUNÇÕES DE PARSE ---
+// --- PARSE FUNCTIONS ---
 function parseDbtNodes(manifestData, catalogData) {
   const tables = {};
   const allManifestNodes = { ...(manifestData.nodes || {}), ...(manifestData.sources || {}) };
@@ -26,16 +26,16 @@ function parseDbtNodes(manifestData, catalogData) {
     const catalogNode = allCatalogNodes[nodeId];
     if (!catalogNode) continue;
 
-    // --- LÓGICA DE FALLBACK PARA COLUNAS (RESTAURADA) ---
-    // 1. Tenta obter a lista de nomes de colunas do manifest.
+    // --- FALLBACK LOGIC FOR COLUMNS (RESTORED) ---
+    // 1. Tries to get the list of column names from the manifest.
     let columnNames = Object.keys(node.columns || {});
 
-    // 2. Se o manifest não tiver colunas, usa as colunas do catalog como fallback.
+    // 2. If the manifest has no columns, uses the catalog columns as a fallback.
     if (columnNames.length === 0 && catalogNode) {
         columnNames = Object.keys(catalogNode.columns || {});
     }
 
-    // 3. Mapeia a lista de nomes de colunas para obter os detalhes de cada uma.
+    // 3. Maps the list of column names to get the details for each one.
     const columns = columnNames.map((colName) => {
       const manifestCol = node.columns?.[colName] || {};
       const catalogCol = catalogNode.columns?.[colName] || {};
@@ -46,7 +46,7 @@ function parseDbtNodes(manifestData, catalogData) {
         type: catalogCol.type || 'UNKNOWN',
       };
     });
-    // --- FIM DA LÓGICA RESTAURADA ---
+    // --- END OF RESTORED LOGIC ---
 
     tables[nodeId] = {
       id: nodeId,
@@ -138,9 +138,9 @@ function calculateDynamicLayout(nodesData, edgesData) {
 
 const nodeTypes = { tableNode: TableNode };
 
-// --- COMPONENTE PRINCIPAL ---
+// --- MAIN COMPONENT ---
 function Flow() {
-  // --- ESTADOS ---
+  // --- STATES ---
   const [allNodes, setAllNodes] = useState([]);
   const [allEdges, setAllEdges] = useState([]);
   const [nodes, setNodes, onNodesChange] = useNodesState([]);
@@ -154,7 +154,7 @@ function Flow() {
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
-  // --- EFEITOS ---
+  // --- EFFECTS ---
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -182,7 +182,7 @@ function Flow() {
         setEdges(parsedEdges);
 
       } catch (error) {
-        console.error("Falha ao carregar ou processar os metadados do dbt:", error);
+        console.error("Failed to load or parse dbt metadata:", error);
       } finally {
         setIsLoading(false);
       }
@@ -230,7 +230,7 @@ function Flow() {
   }, [selectedTags, allNodes, allEdges, setNodes, setEdges]);
 
 
-  // --- FUNÇÕES DE CALLBACK ---
+  // --- CALLBACK FUNCTIONS ---
   const handleColumnClick = (columnId) => {
     setSelectedColumn(prev => (prev === columnId ? null : columnId));
   };
@@ -283,9 +283,9 @@ function Flow() {
 
   const onConnect = useCallback((params) => setEdges((eds) => addEdge({ ...params, animated: true }, eds)), []);
 
-  // --- RENDERIZAÇÃO ---
+  // --- RENDER ---
   if (isLoading) {
-    return <div style={{padding: 20, fontFamily: 'Arial'}}>A Carregar a Linhagem de Dados...</div>;
+    return <div style={{padding: 20, fontFamily: 'Arial'}}>Loading Data Lineage...</div>;
   }
 
   const nodesWithClickHandlers = nodes.map(node => ({
@@ -327,7 +327,7 @@ function Flow() {
                         setIsTagDropdownOpen(false);
                     }}
                     onBlur={() => setIsSearchFocused(false)}
-                    placeholder="Procurar Tabela..." 
+                    placeholder="Search table..." 
                     style={{ 
                         marginLeft: '10px',
                         border: 'none', 
@@ -350,7 +350,7 @@ function Flow() {
         <div style={{ position: 'relative' }}>
             <div 
                 onClick={() => setIsTagDropdownOpen(prev => !prev)} 
-                title="Filtrar por Tag"
+                title="Filter by Tag"
                 style={{ 
                     backgroundColor: 'white', 
                     borderRadius: '8px', 
@@ -415,7 +415,7 @@ function Flow() {
       >
         <Background />
         <Controls />
-        {/* Adiciona o Minimapa com as propriedades atualizadas */}
+        {/* Adds the MiniMap with updated properties */}
         <MiniMap 
             pannable={true}
             zoomable={true}

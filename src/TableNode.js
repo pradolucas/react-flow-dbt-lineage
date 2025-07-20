@@ -1,5 +1,5 @@
 // src/TableNode.js
-import React, { memo, useState } from 'react'; // Added useState
+import React, { memo, useState } from 'react';
 import { Handle, Position } from 'reactflow';
 
 // --- STYLES ---
@@ -25,7 +25,7 @@ const headerBaseStyle = {
   borderTopRightRadius: '8px',
   display: 'flex',
   alignItems: 'center',
-  overflow: 'hidden', // Garante que o conteúdo do cabeçalho não transborde
+  overflow: 'hidden',
 };
 
 const modelHeaderStyle = { ...headerBaseStyle, backgroundColor: '#2d3748' };
@@ -36,7 +36,6 @@ const iconStyle = {
     flexShrink: 0,
 };
 
-// Estilos para truncar texto
 const truncateTextStyle = {
     whiteSpace: 'nowrap',
     overflow: 'hidden',
@@ -46,13 +45,13 @@ const truncateTextStyle = {
 const tableNameStyle = {
     fontSize: '16px',
     fontWeight: '600',
-    ...truncateTextStyle, // Aplica o estilo de truncar
+    ...truncateTextStyle,
 };
 const dbSchemaStyle = {
     fontSize: '12px',
     opacity: '0.7',
     marginTop: '2px',
-    ...truncateTextStyle, // Aplica o estilo de truncar
+    ...truncateTextStyle,
 };
 
 const columnContainerStyle = { padding: '5px 0' };
@@ -71,10 +70,9 @@ const columnBaseStyle = {
 const columnNameStyle = {
     fontWeight: '500',
     fontSize: '14px',
-    maxWidth: '180px', // Aumentado para dar mais espaço, já que o ícone é menor
+    maxWidth: '180px',
     ...truncateTextStyle,
 };
-// Removido o columnTypeStyle, pois será substituído pelo ícone
 
 const tagsFooterStyle = {
     padding: '8px 12px',
@@ -95,12 +93,11 @@ const tagStyle = {
     borderRadius: '12px',
 };
 
-// Updated style for the expand/collapse button
 const expanderStyle = {
     display: 'flex',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: '6px', // Space between text and icon
+    gap: '6px',
     padding: '8px 0',
     cursor: 'pointer',
     color: '#718096',
@@ -114,9 +111,16 @@ const expanderTextStyle = {
     fontWeight: '500',
 };
 
-// --- NOVO COMPONENTE DE ÍCONE (Refatorado) ---
+// Updated style for the column search container
+const columnSearchStyle = {
+    position: 'relative',
+    padding: '8px 12px',
+    borderBottom: '1px solid #eee',
+    display: 'flex',
+    alignItems: 'center',
+};
 
-// Mapeamento de palavras-chave para ícones SVG
+// --- DATA TYPE ICON COMPONENT ---
 const dataTypeIconMap = {
     numeric: {
         keywords: ['int', 'numeric', 'decimal', 'serial', 'double', 'real', 'money'],
@@ -166,38 +170,33 @@ const dataTypeIconMap = {
 
 const DataTypeIcon = ({ type }) => {
     const typeLower = type.toLowerCase();
-    
-    // Encontra o primeiro ícone cujas palavras-chave correspondem ao tipo de dado.
     const foundIcon = Object.values(dataTypeIconMap).find(iconData => 
         iconData.keywords.some(keyword => typeLower.includes(keyword))
     );
-
-    // Se encontrar um ícone, usa-o. Caso contrário, usa o ícone padrão.
     const icon = foundIcon ? foundIcon.icon : dataTypeIconMap.default.icon;
-
     return <div title={type}>{icon}</div>;
 };
 
 
-// --- COMPONENTE PRINCIPAL ---
+// --- MAIN COMPONENT ---
 export default memo(({ data, isConnectable, selected }) => {
-  // State to control if the column list is expanded
   const [isExpanded, setIsExpanded] = useState(false);
-  const MAX_COLUMNS_COLLAPSED = 5; // Maximum number of columns to display when collapsed
+  const [columnSearch, setColumnSearch] = useState('');
+  const MAX_COLUMNS_COLLAPSED = 5;
 
   const isSource = data.resource_type === 'source';
   const headerStyle = isSource ? sourceHeaderStyle : modelHeaderStyle;
+  const dynamicNodeStyle = { ...nodeStyle, ...(selected ? nodeHighlightStyle : {}) };
 
-  const dynamicNodeStyle = {
-      ...nodeStyle,
-      ...(selected ? nodeHighlightStyle : {}),
-  };
+  // Filter columns based on the search term
+  const filteredColumns = data.columns.filter(col => 
+    col.name.toLowerCase().includes(columnSearch.toLowerCase())
+  );
 
-  // Logic to determine which columns to display
-  const hasManyColumns = data.columns.length > MAX_COLUMNS_COLLAPSED;
-  const columnsToShow = hasManyColumns && !isExpanded
-      ? data.columns.slice(0, MAX_COLUMNS_COLLAPSED)
-      : data.columns;
+  const hasManyColumns = filteredColumns.length > MAX_COLUMNS_COLLAPSED;
+  const columnsToShow = hasManyColumns && !isExpanded 
+      ? filteredColumns.slice(0, MAX_COLUMNS_COLLAPSED) 
+      : filteredColumns;
 
   return (
     <div style={dynamicNodeStyle}>
@@ -222,12 +221,37 @@ export default memo(({ data, isConnectable, selected }) => {
             <div style={dbSchemaStyle} title={`${data.database}.${data.schema}`}>{data.database}.{data.schema}</div>
         </div>
       </div>
+
+      {/* Column Search Input */}
+      <div style={columnSearchStyle}>
+        <span style={{ position: 'absolute', left: '20px', top: '50%', transform: 'translateY(-50%)', color: '#9e9e9e' }}>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="11" cy="11" r="8"></circle>
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            </svg>
+        </span>
+        <input 
+            type="text" 
+            placeholder="Search columns..."
+            value={columnSearch}
+            onChange={(e) => setColumnSearch(e.target.value)}
+            onClick={(e) => e.stopPropagation()} // Prevent node selection when clicking input
+            style={{
+                width: '100%',
+                padding: '6px 8px 6px 30px', // Added left padding for the icon
+                borderRadius: '4px',
+                border: '1px solid #e2e8f0',
+                fontSize: '12px',
+                boxSizing: 'border-box', // Ensures padding doesn't exceed width
+            }}
+        />
+      </div>
+
       <div style={columnContainerStyle}>
         {columnsToShow.map((column, index) => {
           const isSelected = data.selectedColumn === column.id;
           const dynamicColumnStyle = {
             ...columnBaseStyle,
-            // Removes the bottom border from the last visible item
             ...(index === columnsToShow.length - 1 ? { borderBottom: 'none' } : {}),
             backgroundColor: isSelected ? '#e6fffa' : 'transparent',
           };
@@ -249,7 +273,6 @@ export default memo(({ data, isConnectable, selected }) => {
         })}
       </div>
       
-      {/* Renders the expand/collapse button with icons and text */}
       {hasManyColumns && (
         <div
             style={expanderStyle}
@@ -267,7 +290,7 @@ export default memo(({ data, isConnectable, selected }) => {
             </>
           ) : (
             <>
-              <span style={expanderTextStyle}>{`Show ${data.columns.length - MAX_COLUMNS_COLLAPSED} more`}</span>
+              <span style={expanderTextStyle}>{`Show ${filteredColumns.length - MAX_COLUMNS_COLLAPSED} more`}</span>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="6 9 12 15 18 9"></polyline>
               </svg>
