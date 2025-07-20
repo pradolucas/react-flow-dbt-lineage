@@ -9,12 +9,12 @@ import ReactFlow, {
   Background,
   Controls,
   MarkerType,
+  MiniMap, // Importa o componente do Minimapa
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import TableNode from './TableNode';
 
 // --- FUNÇÕES DE PARSE ---
-// Modificada para ter um fallback para as colunas do catalog.json
 function parseDbtNodes(manifestData, catalogData) {
   const tables = {};
   const allManifestNodes = { ...(manifestData.nodes || {}), ...(manifestData.sources || {}) };
@@ -26,29 +26,28 @@ function parseDbtNodes(manifestData, catalogData) {
     const catalogNode = allCatalogNodes[nodeId];
     if (!catalogNode) continue;
 
-    // --- LÓGICA DE FALLBACK PARA COLUNAS ---
+    // --- LÓGICA DE FALLBACK PARA COLUNAS (RESTAURADA) ---
     // 1. Tenta obter a lista de nomes de colunas do manifest.
     let columnNames = Object.keys(node.columns || {});
 
-    // 2. Se o manifest não tiver colunas para este nó, usa as colunas do catalog como fallback.
-    if (columnNames.length === 0) {
+    // 2. Se o manifest não tiver colunas, usa as colunas do catalog como fallback.
+    if (columnNames.length === 0 && catalogNode) {
         columnNames = Object.keys(catalogNode.columns || {});
     }
 
     // 3. Mapeia a lista de nomes de colunas para obter os detalhes de cada uma.
     const columns = columnNames.map((colName) => {
-      // Busca informações da coluna de ambas as fontes de forma segura.
       const manifestCol = node.columns?.[colName] || {};
       const catalogCol = catalogNode.columns?.[colName] || {};
       return {
         id: `${node.name}-${colName}`,
         name: colName,
-        description: manifestCol.description || '', // Descrição geralmente vem do manifest.
-        type: catalogCol.type || 'UNKNOWN',     // Tipo geralmente vem do catalog.
+        description: manifestCol.description || '',
+        type: catalogCol.type || 'UNKNOWN',
       };
     });
-    // --- FIM DA LÓGICA MODIFICADA ---
-    
+    // --- FIM DA LÓGICA RESTAURADA ---
+
     tables[nodeId] = {
       id: nodeId,
       label: node.name,
@@ -416,6 +415,24 @@ function Flow() {
       >
         <Background />
         <Controls />
+        {/* Adiciona o Minimapa com as propriedades atualizadas */}
+        <MiniMap 
+            pannable={true}
+            zoomable={true}
+            inversePan={true}
+            zoomStep={5}
+            style={{
+                backgroundColor: '#f8f9fa',
+                border: '1px solid #dee2e6',
+                borderRadius: '8px',
+            }}
+            nodeColor={(node) => {
+                if (node.data.resource_type === 'source') return '#2f855a';
+                return '#2d3748';
+            }}
+            nodeStrokeWidth={3}
+            maskColor="#e9ecef"
+        />
       </ReactFlow>
     </div>
   );
