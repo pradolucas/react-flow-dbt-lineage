@@ -1,8 +1,8 @@
 // src/TableNode.js
-import React, { memo } from 'react';
+import React, { memo, useState } from 'react'; // Added useState
 import { Handle, Position } from 'reactflow';
 
-// --- ESTILOS ---
+// --- STYLES ---
 const nodeStyle = {
   border: '1px solid #ddd',
   borderRadius: '8px',
@@ -10,10 +10,9 @@ const nodeStyle = {
   width: 260,
   fontFamily: "'Inter', sans-serif",
   boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
-  transition: 'border-color 0.2s, box-shadow 0.2s', // Adiciona transição para o efeito de highlight
+  transition: 'border-color 0.2s, box-shadow 0.2s',
 };
 
-// Novo estilo para o highlight do nó
 const nodeHighlightStyle = {
     borderColor: '#00A4C9',
     boxShadow: '0 0 0 2px rgba(0, 164, 201, 0.2), 0 4px 12px rgba(0,0,0,0.1)',
@@ -87,32 +86,57 @@ const tagStyle = {
     borderRadius: '12px',
 };
 
+// Updated style for the expand/collapse button
+const expanderStyle = {
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: '6px', // Space between text and icon
+    padding: '8px 0',
+    cursor: 'pointer',
+    color: '#718096',
+    backgroundColor: '#f7fafc',
+    borderBottom: '1px solid #eee',
+    transition: 'background-color 0.2s',
+};
 
-// --- COMPONENTE ---
-// Adiciona a propriedade 'selected' que é fornecida pelo React Flow
+const expanderTextStyle = {
+    fontSize: '12px',
+    fontWeight: '500',
+};
+
+
+// --- COMPONENT ---
 export default memo(({ data, isConnectable, selected }) => {
+  // State to control if the column list is expanded
+  const [isExpanded, setIsExpanded] = useState(false);
+  const MAX_COLUMNS_COLLAPSED = 3; // Maximum number of columns to display when collapsed
+
   const isSource = data.resource_type === 'source';
   const headerStyle = isSource ? sourceHeaderStyle : modelHeaderStyle;
 
-  // Combina o estilo base com o estilo de highlight se o nó estiver selecionado
   const dynamicNodeStyle = {
       ...nodeStyle,
       ...(selected ? nodeHighlightStyle : {}),
   };
+
+  // Logic to determine which columns to display
+  const hasManyColumns = data.columns.length > MAX_COLUMNS_COLLAPSED;
+  const columnsToShow = hasManyColumns && !isExpanded 
+      ? data.columns.slice(0, MAX_COLUMNS_COLLAPSED) 
+      : data.columns;
 
   return (
     <div style={dynamicNodeStyle}>
       <div style={headerStyle}>
         <div style={iconStyle}>
             {isSource ? (
-                // Ícone para Source (representando um banco de dados/cilindro)
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
                     <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
                     <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
                 </svg>
             ) : (
-                // Ícone para Model (representando uma tabela)
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
                     <line x1="3" y1="9" x2="21" y2="9"></line>
@@ -126,11 +150,12 @@ export default memo(({ data, isConnectable, selected }) => {
         </div>
       </div>
       <div style={columnContainerStyle}>
-        {data.columns.map((column, index) => {
+        {columnsToShow.map((column, index) => {
           const isSelected = data.selectedColumn === column.id;
           const dynamicColumnStyle = {
             ...columnBaseStyle,
-            ...(index === data.columns.length - 1 ? { borderBottom: 'none' } : {}),
+            // Removes the bottom border from the last visible item
+            ...(index === columnsToShow.length - 1 ? { borderBottom: 'none' } : {}),
             backgroundColor: isSelected ? '#e6fffa' : 'transparent',
           };
 
@@ -150,6 +175,34 @@ export default memo(({ data, isConnectable, selected }) => {
           );
         })}
       </div>
+      
+      {/* Renders the expand/collapse button with icons and text */}
+      {hasManyColumns && (
+        <div 
+            style={expanderStyle} 
+            onClick={() => setIsExpanded(!isExpanded)}
+            onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#edf2f7'}
+            onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f7fafc'}
+            title={isExpanded ? 'Hide columns' : 'Show more columns'}
+        >
+          {isExpanded ? (
+            <>
+              <span style={expanderTextStyle}>Hide</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="18 15 12 9 6 15"></polyline>
+              </svg>
+            </>
+          ) : (
+            <>
+              <span style={expanderTextStyle}>{`Show ${data.columns.length - MAX_COLUMNS_COLLAPSED} more`}</span>
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+              </svg>
+            </>
+          )}
+        </div>
+      )}
+
       {data.tags && data.tags.length > 0 && (
         <div style={tagsFooterStyle}>
             {data.tags.map(tag => <span key={tag} style={tagStyle}>{tag}</span>)}
