@@ -25,6 +25,7 @@ const headerBaseStyle = {
   borderTopRightRadius: '8px',
   display: 'flex',
   alignItems: 'center',
+  overflow: 'hidden', // Garante que o conteúdo do cabeçalho não transborde
 };
 
 const modelHeaderStyle = { ...headerBaseStyle, backgroundColor: '#2d3748' };
@@ -35,14 +36,23 @@ const iconStyle = {
     flexShrink: 0,
 };
 
+// Estilos para truncar texto
+const truncateTextStyle = {
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+};
+
 const tableNameStyle = {
     fontSize: '16px',
     fontWeight: '600',
+    ...truncateTextStyle, // Aplica o estilo de truncar
 };
 const dbSchemaStyle = {
     fontSize: '12px',
     opacity: '0.7',
     marginTop: '2px',
+    ...truncateTextStyle, // Aplica o estilo de truncar
 };
 
 const columnContainerStyle = { padding: '5px 0' };
@@ -58,13 +68,21 @@ const columnBaseStyle = {
   cursor: 'pointer',
 };
 
-const columnNameStyle = { fontWeight: '500', fontSize: '14px' };
+const columnNameStyle = {
+    fontWeight: '500',
+    fontSize: '14px',
+    maxWidth: '150px', // Aumentado para dar mais prioridade ao nome da coluna
+    ...truncateTextStyle,
+};
 const columnTypeStyle = {
   fontSize: '12px',
   color: '#4a5568',
   backgroundColor: '#edf2f7',
   padding: '3px 8px',
   borderRadius: '4px',
+  flexShrink: 0,
+  maxWidth: '65px', // Reduzido para equilibrar o espaço
+  ...truncateTextStyle, // Aplica o estilo de truncar
 };
 
 const tagsFooterStyle = {
@@ -110,7 +128,7 @@ const expanderTextStyle = {
 export default memo(({ data, isConnectable, selected }) => {
   // State to control if the column list is expanded
   const [isExpanded, setIsExpanded] = useState(false);
-  const MAX_COLUMNS_COLLAPSED = 3; // Maximum number of columns to display when collapsed
+  const MAX_COLUMNS_COLLAPSED = 5; // Maximum number of columns to display when collapsed
 
   const isSource = data.resource_type === 'source';
   const headerStyle = isSource ? sourceHeaderStyle : modelHeaderStyle;
@@ -122,13 +140,13 @@ export default memo(({ data, isConnectable, selected }) => {
 
   // Logic to determine which columns to display
   const hasManyColumns = data.columns.length > MAX_COLUMNS_COLLAPSED;
-  const columnsToShow = hasManyColumns && !isExpanded 
-      ? data.columns.slice(0, MAX_COLUMNS_COLLAPSED) 
+  const columnsToShow = hasManyColumns && !isExpanded
+      ? data.columns.slice(0, MAX_COLUMNS_COLLAPSED)
       : data.columns;
 
   return (
     <div style={dynamicNodeStyle}>
-      <div style={headerStyle}>
+      <div style={headerStyle} title={`${data.database}.${data.schema}.${data.label}`}>
         <div style={iconStyle}>
             {isSource ? (
                 <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -144,9 +162,9 @@ export default memo(({ data, isConnectable, selected }) => {
                 </svg>
             )}
         </div>
-        <div>
-            <div style={tableNameStyle}>{data.label}</div>
-            <div style={dbSchemaStyle}>{data.database}.{data.schema}</div>
+        <div style={{overflow: 'hidden'}}>
+            <div style={tableNameStyle} title={data.label}>{data.label}</div>
+            <div style={dbSchemaStyle} title={`${data.database}.${data.schema}`}>{data.database}.{data.schema}</div>
         </div>
       </div>
       <div style={columnContainerStyle}>
@@ -168,8 +186,8 @@ export default memo(({ data, isConnectable, selected }) => {
               onMouseOut={(e) => e.currentTarget.style.backgroundColor = isSelected ? '#e6fffa' : 'transparent'}
             >
               <Handle type="target" position={Position.Left} id={column.id} isConnectable={isConnectable} style={{ top: '50%', borderRadius: 0 }} />
-              <span style={columnNameStyle}>{column.name}</span>
-              <span style={columnTypeStyle}>{column.type}</span>
+              <span style={columnNameStyle} title={column.name}>{column.name}</span>
+              <span style={columnTypeStyle} title={column.type}>{column.type}</span>
               <Handle type="source" position={Position.Right} id={column.id} isConnectable={isConnectable} style={{ top: '50%', borderRadius: 0 }} />
             </div>
           );
@@ -178,8 +196,8 @@ export default memo(({ data, isConnectable, selected }) => {
       
       {/* Renders the expand/collapse button with icons and text */}
       {hasManyColumns && (
-        <div 
-            style={expanderStyle} 
+        <div
+            style={expanderStyle}
             onClick={() => setIsExpanded(!isExpanded)}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#edf2f7'}
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f7fafc'}
