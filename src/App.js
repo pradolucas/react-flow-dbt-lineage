@@ -158,6 +158,7 @@ function Flow() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   // --- EFFECTS ---
+  // Effect 1: Runs only once on mount to fetch all data and set initial filter state from URL.
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -179,10 +180,20 @@ function Flow() {
         });
         setAvailableTags(Array.from(allTags).sort());
 
+        // Set the master data lists first. This is crucial.
         setAllNodes(parsedNodes);
         setAllEdges(parsedEdges);
-        setNodes(parsedNodes);
-        setEdges(parsedEdges);
+
+        // Then, read URL parameters to set the initial filter state.
+        const params = new URLSearchParams(window.location.search);
+        const searchParam = params.get('search');
+        const tagsParam = params.get('tags');
+
+        if (searchParam) {
+            setSearchQuery(searchParam);
+        } else if (tagsParam) {
+            setSelectedTags(tagsParam.split(','));
+        }
 
       } catch (error) {
         console.error("Failed to load or parse dbt metadata:", error);
@@ -191,8 +202,74 @@ function Flow() {
       }
     };
     fetchData();
-  }, []);
+  }, []); // Empty dependency array ensures this runs only once on mount.
 
+  // Effect 2: This effect syncs the filter state TO the URL.
+  useEffect(() => {
+    // GUARD: Do not update the URL while the initial data is loading.
+    // This prevents this effect from clearing the URL params before they are read.
+    if (isLoading) {
+      return;
+    }
+
+    const params = new URLSearchParams();
+    if (searchQuery) {
+      params.set('search', searchQuery);
+    } else if (selectedTags.length > 0) {
+      params.set('tags', selectedTags.join(','));
+    }
+  
+    const newUrl = params.toString()
+      ? `${window.location.pathname}?${params.toString()}`
+      : window.location.pathname;
+  
+    window.history.replaceState({ path: newUrl }, '', newUrl);
+  }, [searchQuery, selectedTags, isLoading]); // Add isLoading to the dependency array
+
+  // Effect 3: This effect applies the filters whenever the criteria or master data change.
+  useEffect(() => {
+    // GUARD: Only run if the master list of nodes is populated.
+    if (allNodes.length === 0) {
+        setNodes([]);
+        setEdges([]);
+        return;
+    };
+
+    setSelectedColumn(null);
+
+    if (searchQuery) {
+        const relatedNodeIds = new Set();
+        const mainNode = allNodes.find(n => n.data.label.toLowerCase() === searchQuery.toLowerCase());
+        if (mainNode) {
+            relatedNodeIds.add(mainNode.id);
+            allEdges.forEach(edge => {
+                if (edge.source === mainNode.id) { relatedNodeIds.add(edge.target); }
+                if (edge.target === mainNode.id) { relatedNodeIds.add(edge.source); }
+            });
+        }
+        const filteredNodes = allNodes.filter(n => relatedNodeIds.has(n.id));
+        setNodes(filteredNodes);
+        setEdges(allEdges.filter(e => relatedNodeIds.has(e.source) && relatedNodeIds.has(e.target)));
+    } else if (selectedTags.length > 0) {
+        const nodesToShowIds = new Set();
+        const seedNodes = allNodes.filter(n => selectedTags.some(tag => n.data.tags?.includes(tag)));
+        seedNodes.forEach(n => nodesToShowIds.add(n.id));
+        seedNodes.forEach(node => {
+            allEdges.forEach(edge => {
+                if (edge.source === node.id) { nodesToShowIds.add(edge.target); }
+                if (edge.target === node.id) { nodesToShowIds.add(edge.source); }
+            });
+        });
+        const filteredNodes = allNodes.filter(n => nodesToShowIds.has(n.id));
+        setNodes(filteredNodes);
+        setEdges(allEdges.filter(e => nodesToShowIds.has(e.source) && nodesToShowIds.has(e.target)));
+    } else {
+        setNodes(allNodes);
+        setEdges(allEdges);
+    }
+  }, [searchQuery, selectedTags, allNodes, allEdges]);
+
+  // Effect 4: For highlighting
   useEffect(() => {
     setEdges((currentEdges) =>
       currentEdges.map((edge) => {
@@ -202,37 +279,6 @@ function Flow() {
     );
   }, [selectedColumn, setEdges]);
   
-  useEffect(() => {
-    setSelectedColumn(null);
-    if (!selectedTags || selectedTags.length === 0) {
-        setNodes(allNodes);
-        setEdges(allEdges);
-        return;
-    }
-    
-    const nodesToShowIds = new Set();
-    const seedNodes = allNodes.filter(n => selectedTags.some(tag => n.data.tags?.includes(tag)));
-    seedNodes.forEach(n => nodesToShowIds.add(n.id));
-
-    seedNodes.forEach(node => {
-        allEdges.forEach(edge => {
-            if (edge.source === node.id) {
-                nodesToShowIds.add(edge.target);
-            }
-            if (edge.target === node.id) {
-                nodesToShowIds.add(edge.source);
-            }
-        });
-    });
-
-    const filteredNodes = allNodes.filter(n => nodesToShowIds.has(n.id));
-    const filteredEdges = allEdges.filter(e => nodesToShowIds.has(e.source) && nodesToShowIds.has(e.target));
-
-    setNodes(filteredNodes);
-    setEdges(filteredEdges);
-  }, [selectedTags, allNodes, allEdges, setNodes, setEdges]);
-
-
   // --- CALLBACK FUNCTIONS ---
   const handleColumnClick = (columnId) => {
     setSelectedColumn(prev => (prev === columnId ? null : columnId));
@@ -241,34 +287,18 @@ function Flow() {
   const handleSearchChange = (event) => {
     const query = event.target.value;
     setSearchQuery(query);
-    setSelectedTags([]);
-
     if (query) {
       const matchingNodes = allNodes.filter(node => node.data.label.toLowerCase().includes(query.toLowerCase()));
       setSuggestions(matchingNodes);
     } else {
       setSuggestions([]);
-      setNodes(allNodes);
-      setEdges(allEdges);
     }
+    setSelectedTags([]); // Clear tag filter when searching
   };
   
   const handleSuggestionClick = (nodeLabel) => {
     setSearchQuery(nodeLabel);
     setSuggestions([]);
-    
-    const relatedNodeIds = new Set();
-    const relatedEdgeIds = new Set();
-    const mainNode = allNodes.find(n => n.data.label.toLowerCase() === nodeLabel.toLowerCase());
-    if (mainNode) {
-      relatedNodeIds.add(mainNode.id);
-      allEdges.forEach(edge => {
-        if (edge.source === mainNode.id) { relatedNodeIds.add(edge.target); relatedEdgeIds.add(edge.id); }
-        if (edge.target === mainNode.id) { relatedNodeIds.add(edge.source); relatedEdgeIds.add(edge.id); }
-      });
-    }
-    setNodes(allNodes.filter(n => relatedNodeIds.has(n.id)));
-    setEdges(allEdges.filter(e => relatedEdgeIds.has(e.id)));
   };
 
   const handleTagSelectionChange = (tag) => {
