@@ -434,7 +434,7 @@ function Flow() {
                 return '#2d3748';
             }}
             nodeStrokeWidth={3}
-            maskColor="#e9ecef"
+            maskColor="rgba(233, 236, 239, 0.8)" // Less translucent mask color
         />
       </ReactFlow>
     </div>
