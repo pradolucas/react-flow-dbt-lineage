@@ -56,6 +56,8 @@ function parseDbtNodes(manifestData, catalogData) {
       schema: node.schema,
       columns: columns,
       tags: node.tags || [],
+      // NEW: Add the dbt docs URL using the nodeId, which is the unique_id
+      dbtDocsUrl: `https://your-dbt-server.com/#!/model/${nodeId}`
     };
   }
   return tables;

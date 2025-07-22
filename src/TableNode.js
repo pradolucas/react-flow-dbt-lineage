@@ -26,6 +26,7 @@ const headerBaseStyle = {
   display: 'flex',
   alignItems: 'center',
   overflow: 'hidden',
+  justifyContent: 'space-between', // Aligns items to the sides
 };
 
 const modelHeaderStyle = { ...headerBaseStyle, backgroundColor: '#2d3748' };
@@ -111,7 +112,6 @@ const expanderTextStyle = {
     fontWeight: '500',
 };
 
-// Updated style for the column search container
 const columnSearchStyle = {
     position: 'relative',
     padding: '8px 12px',
@@ -121,54 +121,53 @@ const columnSearchStyle = {
 };
 
 // --- DATA TYPE ICON COMPONENT ---
-const dataTypeIconMap = {
-    numeric: {
-        keywords: ['int', 'numeric', 'decimal', 'serial', 'double', 'real', 'money'],
-        icon: <svg title="Numeric" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line></svg>
-    },
-    text: {
-        keywords: ['char', 'text'],
-        icon: <svg title="Text" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
-    },
-    datetime: {
-        keywords: ['date', 'time', 'interval'],
-        icon: <svg title="Date/Time" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
-    },
-    boolean: {
-        keywords: ['bool'],
-        icon: <svg title="Boolean" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-    },
-    json: {
-        keywords: ['json'],
-        icon: <svg title="JSON" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4a2 2 0 0 0 -2 2v3a2 3 0 0 1 -2 3a2 3 0 0 1 2 3v3a2 2 0 0 0 2 2" /><path d="M17 4a2 2 0 0 1 2 2v3a2 3 0 0 0 2 3a2 3 0 0 0 -2 3v3a2 2 0 0 1 -2 2" /></svg>
-    },
-    array: {
-        keywords: ['[]'],
-        icon: <svg title="Array" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="7" width="10" height="10" rx="2" ry="2"></rect><path d="M17 17v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2"></path></svg>
-    },
-    uuid: {
-        keywords: ['uuid'],
-        icon: <svg title="UUID" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h3m14 0h3M12 2v3m0 14v3"/><circle cx="12" cy="12" r="7"/></svg>
-    },
-    binary: {
-        keywords: ['bytea'],
-        icon: <svg title="Binary" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 10v4"/><path d="M10.5 10h1.5c.8 0 1.5.7 1.5 1.5v1c0 .8-.7 1.5-1.5 1.5h-1.5"/><path d="M16 14v-4h2"/><path d="M18 10v4"/></svg>
-    },
-    network: {
-        keywords: ['cidr', 'inet', 'macaddr'],
-        icon: <svg title="Network" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
-    },
-    geometric: {
-        keywords: ['point', 'line', 'lseg', 'box', 'path', 'polygon', 'circle'],
-        icon: <svg title="Geometric" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="3"></circle><path d="M12 22V8"></path><path d="M5 12H2a10 10 0 0 0 20 0h-3"></path></svg>
-    },
-    default: {
-        keywords: [],
-        icon: <svg title="Unknown" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
-    }
-};
-
-const DataTypeIcon = ({ type }) => {
+const DataTypeIcon = ({ type }) => { 
+    const dataTypeIconMap = {
+        numeric: {
+            keywords: ['int', 'numeric', 'decimal', 'serial', 'double', 'real', 'money'],
+            icon: <svg title="Numeric" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="9" x2="20" y2="9"></line><line x1="4" y1="15" x2="20" y2="15"></line><line x1="10" y1="3" x2="8" y2="21"></line><line x1="16" y1="3" x2="14" y2="21"></line></svg>
+        },
+        text: {
+            keywords: ['char', 'text'],
+            icon: <svg title="Text" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="4 7 4 4 20 4 20 7"></polyline><line x1="9" y1="20" x2="15" y2="20"></line><line x1="12" y1="4" x2="12" y2="20"></line></svg>
+        },
+        datetime: {
+            keywords: ['date', 'time', 'interval'],
+            icon: <svg title="Date/Time" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+        },
+        boolean: {
+            keywords: ['bool'],
+            icon: <svg title="Boolean" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        },
+        json: {
+            keywords: ['json'],
+            icon: <svg title="JSON" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M7 4a2 2 0 0 0 -2 2v3a2 3 0 0 1 -2 3a2 3 0 0 1 2 3v3a2 2 0 0 0 2 2" /><path d="M17 4a2 2 0 0 1 2 2v3a2 3 0 0 0 2 3a2 3 0 0 0 -2 3v3a2 2 0 0 1 -2 2" /></svg>
+        },
+        array: {
+            keywords: ['[]'],
+            icon: <svg title="Array" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="7" y="7" width="10" height="10" rx="2" ry="2"></rect><path d="M17 17v2a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h2"></path></svg>
+        },
+        uuid: {
+            keywords: ['uuid'],
+            icon: <svg title="UUID" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 12h3m14 0h3M12 2v3m0 14v3"/><circle cx="12" cy="12" r="7"/></svg>
+        },
+        binary: {
+            keywords: ['bytea'],
+            icon: <svg title="Binary" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 10v4"/><path d="M10.5 10h1.5c.8 0 1.5.7 1.5 1.5v1c0 .8-.7 1.5-1.5 1.5h-1.5"/><path d="M16 14v-4h2"/><path d="M18 10v4"/></svg>
+        },
+        network: {
+            keywords: ['cidr', 'inet', 'macaddr'],
+            icon: <svg title="Network" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
+        },
+        geometric: {
+            keywords: ['point', 'line', 'lseg', 'box', 'path', 'polygon', 'circle'],
+            icon: <svg title="Geometric" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="5" r="3"></circle><path d="M12 22V8"></path><path d="M5 12H2a10 10 0 0 0 20 0h-3"></path></svg>
+        },
+        default: {
+            keywords: [],
+            icon: <svg title="Unknown" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+        }
+    };
     const typeLower = type.toLowerCase();
     const foundIcon = Object.values(dataTypeIconMap).find(iconData => 
         iconData.keywords.some(keyword => typeLower.includes(keyword))
@@ -200,29 +199,47 @@ export default memo(({ data, isConnectable, selected }) => {
 
   return (
     <div style={dynamicNodeStyle}>
-      <div style={headerStyle} title={`${data.database}.${data.schema}.${data.label}`}>
-        <div style={iconStyle}>
-            {isSource ? (
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-                    <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-                    <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-                </svg>
-            ) : (
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                    <line x1="3" y1="9" x2="21" y2="9"></line>
-                    <line x1="9" y1="21" x2="9" y2="9"></line>
-                </svg>
-            )}
+      <div style={headerStyle}>
+        <div style={{ display: 'flex', alignItems: 'center', overflow: 'hidden' }}>
+            <div style={iconStyle}>
+                {isSource ? (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
+                        <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
+                        <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                    </svg>
+                ) : (
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                        <line x1="3" y1="9" x2="21" y2="9"></line>
+                        <line x1="9" y1="21" x2="9" y2="9"></line>
+                    </svg>
+                )}
+            </div>
+            <div style={{overflow: 'hidden'}} title={`${data.database}.${data.schema}.${data.label}`}>
+                <div style={tableNameStyle}>{data.label}</div>
+                <div style={dbSchemaStyle}>{data.database}.{data.schema}</div>
+            </div>
         </div>
-        <div style={{overflow: 'hidden'}}>
-            <div style={tableNameStyle} title={data.label}>{data.label}</div>
-            <div style={dbSchemaStyle} title={`${data.database}.${data.schema}`}>{data.database}.{data.schema}</div>
-        </div>
+        {data.dbtDocsUrl && (
+            <a
+                href={data.dbtDocsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title={`Open docs for ${data.label}`}
+                onClick={(e) => e.stopPropagation()}
+                style={{ color: 'white', opacity: 0.7, transition: 'opacity 0.2s', flexShrink: 0, marginLeft: '10px' }}
+                onMouseOver={(e) => e.currentTarget.style.opacity = 1}
+                onMouseOut={(e) => e.currentTarget.style.opacity = 0.7}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                </svg>
+            </a>
+        )}
       </div>
 
-      {/* Column Search Input */}
       <div style={columnSearchStyle}>
         <span style={{ position: 'absolute', left: '20px', top: '50%', transform: 'translateY(-50%)', color: '#9e9e9e' }}>
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
