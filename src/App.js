@@ -158,7 +158,7 @@ function Flow() {
   const [isSearchFocused, setIsSearchFocused] = useState(false);
 
   // --- EFFECTS ---
-  // Effect 1: Runs only once on mount to fetch all data and set initial filter state from URL.
+  // Effect 1: Runs only once on mount to fetch all data.
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -184,17 +184,6 @@ function Flow() {
         setAllNodes(parsedNodes);
         setAllEdges(parsedEdges);
 
-        // Then, read URL parameters to set the initial filter state.
-        const params = new URLSearchParams(window.location.search);
-        const searchParam = params.get('search');
-        const tagsParam = params.get('tags');
-
-        if (searchParam) {
-            setSearchQuery(searchParam);
-        } else if (tagsParam) {
-            setSelectedTags(tagsParam.split(','));
-        }
-
       } catch (error) {
         console.error("Failed to load or parse dbt metadata:", error);
       } finally {
@@ -204,10 +193,25 @@ function Flow() {
     fetchData();
   }, []); // Empty dependency array ensures this runs only once on mount.
 
-  // Effect 2: This effect syncs the filter state TO the URL.
+  // Effect 2: Runs only once after the master data is loaded to apply initial URL params.
+  useEffect(() => {
+    // GUARD: Only run after allNodes has been populated.
+    if (allNodes.length > 0) {
+        const params = new URLSearchParams(window.location.search);
+        const searchParam = params.get('search');
+        const tagsParam = params.get('tags');
+
+        if (searchParam) {
+            setSearchQuery(searchParam);
+        } else if (tagsParam) {
+            setSelectedTags(tagsParam.split(','));
+        }
+    }
+  }, [allNodes]); // Depends on allNodes to ensure data is ready.
+
+  // Effect 3: This effect syncs the filter state TO the URL.
   useEffect(() => {
     // GUARD: Do not update the URL while the initial data is loading.
-    // This prevents this effect from clearing the URL params before they are read.
     if (isLoading) {
       return;
     }
@@ -226,7 +230,7 @@ function Flow() {
     window.history.replaceState({ path: newUrl }, '', newUrl);
   }, [searchQuery, selectedTags, isLoading]); // Add isLoading to the dependency array
 
-  // Effect 3: This effect applies the filters whenever the criteria or master data change.
+  // Effect 4: This effect applies the filters whenever the criteria or master data change.
   useEffect(() => {
     // GUARD: Only run if the master list of nodes is populated.
     if (allNodes.length === 0) {
@@ -236,6 +240,9 @@ function Flow() {
     };
 
     setSelectedColumn(null);
+
+    let filteredNodes = allNodes;
+    let filteredEdges = allEdges;
 
     if (searchQuery) {
         const relatedNodeIds = new Set();
@@ -247,9 +254,8 @@ function Flow() {
                 if (edge.target === mainNode.id) { relatedNodeIds.add(edge.source); }
             });
         }
-        const filteredNodes = allNodes.filter(n => relatedNodeIds.has(n.id));
-        setNodes(filteredNodes);
-        setEdges(allEdges.filter(e => relatedNodeIds.has(e.source) && relatedNodeIds.has(e.target)));
+        filteredNodes = allNodes.filter(n => relatedNodeIds.has(n.id));
+        filteredEdges = allEdges.filter(e => relatedNodeIds.has(e.source) && relatedNodeIds.has(e.target));
     } else if (selectedTags.length > 0) {
         const nodesToShowIds = new Set();
         const seedNodes = allNodes.filter(n => selectedTags.some(tag => n.data.tags?.includes(tag)));
@@ -260,16 +266,23 @@ function Flow() {
                 if (edge.target === node.id) { nodesToShowIds.add(edge.source); }
             });
         });
-        const filteredNodes = allNodes.filter(n => nodesToShowIds.has(n.id));
-        setNodes(filteredNodes);
-        setEdges(allEdges.filter(e => nodesToShowIds.has(e.source) && nodesToShowIds.has(e.target)));
-    } else {
-        setNodes(allNodes);
-        setEdges(allEdges);
+        filteredNodes = allNodes.filter(n => nodesToShowIds.has(n.id));
+        filteredEdges = allEdges.filter(e => nodesToShowIds.has(e.source) && nodesToShowIds.has(e.target));
     }
+
+    // NEW: Recalculate layout for the filtered nodes
+    const nodesDataObject = filteredNodes.reduce((acc, node) => {
+        acc[node.id] = node.data;
+        return acc;
+    }, {});
+    
+    const relayoutedNodes = calculateDynamicLayout(nodesDataObject, filteredEdges);
+    setNodes(relayoutedNodes);
+    setEdges(filteredEdges);
+
   }, [searchQuery, selectedTags, allNodes, allEdges]);
 
-  // Effect 4: For highlighting
+  // Effect 5: For highlighting
   useEffect(() => {
     setEdges((currentEdges) =>
       currentEdges.map((edge) => {
