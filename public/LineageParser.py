@@ -8,6 +8,12 @@ from typing import Dict, List, Tuple, Set, Any, Optional
 def load_json_file(filepath: str) -> Dict[str, Any]:
     """
     Loads the content of a JSON file from the given path.
+
+    Args:
+        filepath: The path to the JSON file.
+
+    Returns:
+        A dictionary containing the loaded JSON data, or exits if the file is not found or invalid.
     """
     try:
         with open(filepath, 'r', encoding='utf-8') as f:
@@ -41,13 +47,15 @@ class LineageParser:
         Returns:
             A dictionary of columns for the node, or an empty dictionary if none are found.
         """
-        # First, try to get columns from the manifest.
-        manifest_node = self.manifest_data.get("nodes", {}).get(node_id, {})
+        # Combine all potential nodes from manifest for easier lookup
+        all_manifest_nodes = {**self.manifest_data.get("nodes", {}), **self.manifest_data.get("sources", {})}
+        manifest_node = all_manifest_nodes.get(node_id, {})
         columns = manifest_node.get("columns", {})
         
         # If no columns are in the manifest, fall back to the catalog.
         if not columns:
-            catalog_node = self.catalog_data.get("nodes", {}).get(node_id, {})
+            all_catalog_nodes = {**self.catalog_data.get("nodes", {}), **self.catalog_data.get("sources", {})}
+            catalog_node = all_catalog_nodes.get(node_id, {})
             columns = catalog_node.get("columns", {})
             
         return columns
@@ -55,10 +63,17 @@ class LineageParser:
     def _generate_helper_maps(self) -> Tuple[Dict[str, Any], Dict[str, str]]:
         """
         Generates lookup maps from the manifest data needed for lineage analysis.
+        It combines models from 'nodes' and sources from 'sources' for comprehensive mapping.
         """
         schema_map: Dict[str, Any] = {}
         table_to_model_map: Dict[str, str] = {}
-        for node_id, node_info in self.manifest_data.get("nodes", {}).items():
+        
+        # Combine models and sources into a single dictionary for iteration.
+        # This handles manifest versions where sources are under a top-level 'sources' key.
+        all_nodes = {**self.manifest_data.get("nodes", {}), **self.manifest_data.get("sources", {})}
+
+        for node_id, node_info in all_nodes.items():
+            # We only care about models and sources for lineage mapping.
             if node_info.get("resource_type") in ("model", "source"):
                 database = node_info.get("database")
                 schema_name = node_info.get("schema")
@@ -68,7 +83,7 @@ class LineageParser:
                     full_table_name = f"{database}.{schema_name}.{table_name}"
                     table_to_model_map[full_table_name.lower()] = node_id
                     
-                    # Use the new helper to get columns with fallback logic.
+                    # Use the helper to get columns with fallback logic.
                     node_columns = self._get_node_columns(node_id)
                     columns = {
                         col_name: col_info.get("type", "UNKNOWN")
