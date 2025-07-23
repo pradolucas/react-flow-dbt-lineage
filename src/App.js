@@ -56,7 +56,6 @@ function parseDbtNodes(manifestData, catalogData) {
       schema: node.schema,
       columns: columns,
       tags: node.tags || [],
-      // NEW: Add the dbt docs URL using the nodeId, which is the unique_id
       dbtDocsUrl: `https://your-dbt-server.com/#!/model/${nodeId}`
     };
   }
@@ -329,6 +328,12 @@ function Flow() {
     });
   };
 
+  const handleClearFilters = () => {
+    setSearchQuery('');
+    setSelectedTags([]);
+    setSuggestions([]);
+  };
+
   const onConnect = useCallback((params) => setEdges((eds) => addEdge({ ...params, animated: true }, eds)), []);
 
   // --- RENDER ---
@@ -448,6 +453,32 @@ function Flow() {
                 </div>
             )}
         </div>
+        
+        {/* NEW: Clean Filters Button */}
+        {(searchQuery || selectedTags.length > 0) && (
+            <div 
+                onClick={handleClearFilters}
+                title="Clean Filters"
+                style={{ 
+                    backgroundColor: 'white', 
+                    borderRadius: '8px', 
+                    boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '42px',
+                    height: '42px', 
+                    border: '1px solid #ccc'
+                }}
+            >
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"></path>
+                    <line x1="18.5" y1="18.5" x2="22.5" y2="22.5"></line>
+                    <line x1="22.5" y1="18.5" x2="18.5" y2="22.5"></line>
+                </svg>
+            </div>
+        )}
       </div>
 
       <ReactFlow 
