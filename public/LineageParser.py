@@ -3,6 +3,7 @@ import sqlglot
 from sqlglot import exp
 import sqlglot.lineage as lineage
 from sqlglot.optimizer.optimizer import optimize
+from sqlglot.schema import MappingSchema
 from typing import Dict, List, Tuple, Set, Any, Optional
 
 def load_json_file(filepath: str) -> Dict[str, Any]:
@@ -35,7 +36,7 @@ class LineageParser:
         """
         self.manifest_data = manifest_data
         self.catalog_data = catalog_data
-        self.schema_map, self.table_to_model_map = self._generate_helper_maps()
+        self.schema, self.table_to_model_map = self._generate_helper_maps()
 
     def _get_node_columns(self, node_id: str) -> Dict[str, Any]:
         """
@@ -60,37 +61,41 @@ class LineageParser:
             
         return columns
 
-    def _generate_helper_maps(self) -> Tuple[Dict[str, Any], Dict[str, str]]:
+    def _generate_helper_maps(self) -> Tuple[MappingSchema, Dict[str, str]]:
         """
         Generates lookup maps from the manifest data needed for lineage analysis.
         It combines models from 'nodes' and sources from 'sources' for comprehensive mapping.
+        The schema_map is built as a MappingSchema object for sqlglot.
         """
-        schema_map: Dict[str, Any] = {}
+        schema_map_dict: Dict[str, Any] = {}
         table_to_model_map: Dict[str, str] = {}
         
         # Combine models and sources into a single dictionary for iteration.
-        # This handles manifest versions where sources are under a top-level 'sources' key.
         all_nodes = {**self.manifest_data.get("nodes", {}), **self.manifest_data.get("sources", {})}
 
         for node_id, node_info in all_nodes.items():
-            # We only care about models and sources for lineage mapping.
             if node_info.get("resource_type") in ("model", "source"):
                 database = node_info.get("database")
                 schema_name = node_info.get("schema")
                 table_name = node_info.get("alias", node_info.get("name"))
 
                 if database and schema_name and table_name:
+                    # Build the table_to_model_map for quick unique_id lookup
                     full_table_name = f"{database}.{schema_name}.{table_name}"
                     table_to_model_map[full_table_name.lower()] = node_id
                     
-                    # Use the helper to get columns with fallback logic.
+                    # Build the nested schema_map in the format {catalog: {db: {table: {cols}}}}
+                    if database not in schema_map_dict:
+                        schema_map_dict[database] = {}
+                    if schema_name not in schema_map_dict[database]:
+                        schema_map_dict[database][schema_name] = {}
+                    
                     node_columns = self._get_node_columns(node_id)
-                    columns = {
-                        col_name: col_info.get("type", "UNKNOWN")
-                        for col_name, col_info in node_columns.items()
-                    }
-                    schema_map[full_table_name] = columns
-        return schema_map, table_to_model_map
+                    # The schema requires a set of column names
+                    schema_map_dict[database][schema_name][table_name] = set(node_columns.keys())
+
+        # Return a MappingSchema instance for robust type handling in sqlglot
+        return MappingSchema(schema_map_dict), table_to_model_map
 
     def _generate_table_alias_map(self, sql_expr: exp.Expression) -> Dict[str, str]:
         """
@@ -251,8 +256,8 @@ class LineageParser:
                 try:
                     # Pre-process the SQL once per model for efficiency
                     parsed_sql = sqlglot.parse_one(sql, read="postgres")
-                    qualified_sql = parsed_sql.qualify(schema=self.schema_map, dialect="postgres", quote_identifiers=False)
-                    optimized_sql = optimize(qualified_sql)
+                    qualified_sql = parsed_sql.qualify(schema=self.schema, dialect="postgres", quote_identifiers=False)
+                    optimized_sql = optimize(qualified_sql, schema=self.schema)
                     table_alias_map = self._generate_table_alias_map(optimized_sql)
                 except Exception as e:
                     print(f"Could not parse or qualify model {node_id}: {e}")
@@ -263,7 +268,7 @@ class LineageParser:
                 columns_to_trace = self._get_node_columns(node_id)
                 for column_name in columns_to_trace:
                     try:
-                        lineage_node = lineage.lineage(sql=optimized_sql, column=column_name, dialect="postgres")
+                        lineage_node = lineage.lineage(sql=optimized_sql, schema=self.schema, column=column_name, dialect="postgres")
                         final_sources = self._trace_lineage_recursively(lineage_node, table_alias_map)
                         expanded_sources = self._expand_star_statements(final_sources)
                         
