@@ -240,23 +240,28 @@ function Flow() {
         return;
     };
 
-    setSelectedColumn(null);
-
     let filteredNodes = allNodes;
     let filteredEdges = allEdges;
 
     if (searchQuery) {
-        const relatedNodeIds = new Set();
-        const mainNode = allNodes.find(n => n.data.label.toLowerCase() === searchQuery.toLowerCase());
-        if (mainNode) {
-            relatedNodeIds.add(mainNode.id);
+        const matchingNodes = allNodes.filter(node =>
+            node.data.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            node.data.columns.some(col => col.name.toLowerCase().includes(searchQuery.toLowerCase()))
+        );
+        const matchingNodeIds = new Set(matchingNodes.map(n => n.id));
+        
+        const relatedNodeIds = new Set(matchingNodeIds);
+
+        matchingNodeIds.forEach(nodeId => {
             allEdges.forEach(edge => {
-                if (edge.source === mainNode.id) { relatedNodeIds.add(edge.target); }
-                if (edge.target === mainNode.id) { relatedNodeIds.add(edge.source); }
+                if (edge.source === nodeId) { relatedNodeIds.add(edge.target); }
+                if (edge.target === nodeId) { relatedNodeIds.add(edge.source); }
             });
-        }
+        });
+        
         filteredNodes = allNodes.filter(n => relatedNodeIds.has(n.id));
         filteredEdges = allEdges.filter(e => relatedNodeIds.has(e.source) && relatedNodeIds.has(e.target));
+
     } else if (selectedTags.length > 0) {
         const nodesToShowIds = new Set();
         const seedNodes = allNodes.filter(n => selectedTags.some(tag => n.data.tags?.includes(tag)));
@@ -271,7 +276,7 @@ function Flow() {
         filteredEdges = allEdges.filter(e => nodesToShowIds.has(e.source) && nodesToShowIds.has(e.target));
     }
 
-    // NEW: Recalculate layout for the filtered nodes
+    // Recalculate layout for the filtered nodes
     const nodesDataObject = filteredNodes.reduce((acc, node) => {
         acc[node.id] = node.data;
         return acc;
@@ -302,21 +307,46 @@ function Flow() {
     const query = event.target.value;
     setSearchQuery(query);
     if (query) {
-      const matchingNodes = allNodes.filter(node => node.data.label.toLowerCase().includes(query.toLowerCase()));
-      setSuggestions(matchingNodes);
+      const newSuggestions = [];
+      const addedTables = new Set();
+
+      allNodes.forEach(node => {
+        // Check for table name match
+        if (node.data.label.toLowerCase().includes(query.toLowerCase()) && !addedTables.has(node.data.label)) {
+            newSuggestions.push({ type: 'table', label: node.data.label });
+            addedTables.add(node.data.label);
+        }
+        // Check for column name matches
+        node.data.columns.forEach(col => {
+            if (col.name.toLowerCase().includes(query.toLowerCase())) {
+                newSuggestions.push({ type: 'column', tableLabel: node.data.label, columnLabel: col.name, columnId: col.id });
+            }
+        });
+      });
+      setSuggestions(newSuggestions);
     } else {
       setSuggestions([]);
     }
     setSelectedTags([]); // Clear tag filter when searching
+    setSelectedColumn(null); // Clear column highlight on new search
   };
   
-  const handleSuggestionClick = (nodeLabel) => {
-    setSearchQuery(nodeLabel);
+  const handleSuggestionClick = (suggestion) => {
+    // When a suggestion is clicked, we always filter by the table name.
+    setSearchQuery(suggestion.tableLabel || suggestion.label);
+    
+    // If it was a column suggestion, we also highlight that column.
+    if (suggestion.type === 'column') {
+        setSelectedColumn(suggestion.columnId);
+    } else {
+        setSelectedColumn(null); // Clear highlight if it's a table suggestion
+    }
     setSuggestions([]);
   };
 
   const handleTagSelectionChange = (tag) => {
     setSearchQuery('');
+    setSelectedColumn(null); // Clear column highlight when changing tags
     setSelectedTags(prevTags => {
         const newTags = new Set(prevTags);
         if (newTags.has(tag)) {
@@ -332,6 +362,7 @@ function Flow() {
     setSearchQuery('');
     setSelectedTags([]);
     setSuggestions([]);
+    setSelectedColumn(null);
   };
 
   const onConnect = useCallback((params) => setEdges((eds) => addEdge({ ...params, animated: true }, eds)), []);
@@ -380,7 +411,7 @@ function Flow() {
                         setIsTagDropdownOpen(false);
                     }}
                     onBlur={() => setIsSearchFocused(false)}
-                    placeholder="Search table..." 
+                    placeholder="Search table or column..." 
                     style={{ 
                         marginLeft: '10px',
                         border: 'none', 
@@ -395,7 +426,11 @@ function Flow() {
             </div>
             {suggestions.length > 0 && (
                 <ul style={{ position: 'absolute', top: '110%', left: 0, right: 0, backgroundColor: 'white', border: '1px solid #eee', borderRadius: '8px', listStyle: 'none', margin: 0, padding: '5px 0', maxHeight: '200px', overflowY: 'auto', zIndex: 21, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
-                {suggestions.map(node => (<li key={node.id} onClick={() => handleSuggestionClick(node.data.label)} style={{ padding: '10px 15px', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}>{node.data.label}</li>))}
+                {suggestions.map((s, i) => (
+                    <li key={`${s.label || s.columnLabel}-${i}`} onClick={() => handleSuggestionClick(s)} style={{ padding: '10px 15px', cursor: 'pointer' }} onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#f0f8ff'} onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'white'}>
+                        {s.type === 'column' ? <span>{s.tableLabel} &gt; <strong>{s.columnLabel}</strong></span> : s.label}
+                    </li>
+                ))}
                 </ul>
             )}
         </div>
