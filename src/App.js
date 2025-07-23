@@ -13,6 +13,9 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import TableNode from './TableNode';
+// To enable fuzzy search, you need to install fuse.js
+// npm install fuse.js
+import Fuse from 'fuse.js';
 
 // --- PARSE FUNCTIONS ---
 function parseDbtNodes(manifestData, catalogData) {
@@ -157,6 +160,7 @@ function Flow() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [fuse, setFuse] = useState(null);
 
   // --- EFFECTS ---
   // Effect 1: Runs only once on mount to fetch all data.
@@ -184,6 +188,19 @@ function Flow() {
         // Set the master data lists first. This is crucial.
         setAllNodes(parsedNodes);
         setAllEdges(parsedEdges);
+        
+        // Initialize Fuse.js for fuzzy searching with updated weights
+        const fuseOptions = {
+            keys: [
+                { name: 'data.label', weight: 0.3 }, // Lower weight for table name
+                { name: 'data.columns.name', weight: 0.7 } // Higher weight for column names
+            ],
+            includeScore: true,
+            includeMatches: true,
+            threshold: 0.3, // A stricter threshold for more accurate matches
+            ignoreLocation: true,
+        };
+        setFuse(new Fuse(parsedNodes, fuseOptions));
 
       } catch (error) {
         console.error("Failed to load or parse dbt metadata:", error);
@@ -234,7 +251,7 @@ function Flow() {
   // Effect 4: This effect applies the filters whenever the criteria or master data change.
   useEffect(() => {
     // GUARD: Only run if the master list of nodes is populated.
-    if (allNodes.length === 0) {
+    if (allNodes.length === 0 || !fuse) {
         setNodes([]);
         setEdges([]);
         return;
@@ -244,11 +261,8 @@ function Flow() {
     let filteredEdges = allEdges;
 
     if (searchQuery) {
-        const matchingNodes = allNodes.filter(node =>
-            node.data.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            node.data.columns.some(col => col.name.toLowerCase().includes(searchQuery.toLowerCase()))
-        );
-        const matchingNodeIds = new Set(matchingNodes.map(n => n.id));
+        const results = fuse.search(searchQuery);
+        const matchingNodeIds = new Set(results.map(r => r.item.id));
         
         const relatedNodeIds = new Set(matchingNodeIds);
 
@@ -286,7 +300,7 @@ function Flow() {
     setNodes(relayoutedNodes);
     setEdges(filteredEdges);
 
-  }, [searchQuery, selectedTags, allNodes, allEdges]);
+  }, [searchQuery, selectedTags, allNodes, allEdges, fuse]);
 
   // Effect 5: For highlighting
   useEffect(() => {
@@ -305,25 +319,54 @@ function Flow() {
 
   const handleSearchChange = (event) => {
     const query = event.target.value;
+    const lowerCaseQuery = query.toLowerCase();
     setSearchQuery(query);
-    if (query) {
-      const newSuggestions = [];
-      const addedTables = new Set();
 
-      allNodes.forEach(node => {
-        // Check for table name match
-        if (node.data.label.toLowerCase().includes(query.toLowerCase()) && !addedTables.has(node.data.label)) {
-            newSuggestions.push({ type: 'table', label: node.data.label });
-            addedTables.add(node.data.label);
-        }
-        // Check for column name matches
-        node.data.columns.forEach(col => {
-            if (col.name.toLowerCase().includes(query.toLowerCase())) {
-                newSuggestions.push({ type: 'column', tableLabel: node.data.label, columnLabel: col.name, columnId: col.id });
-            }
-        });
+    if (query && fuse) {
+      const results = fuse.search(query);
+      const newSuggestions = [];
+      const addedSuggestions = new Set();
+
+      results.slice(0, 20).forEach(result => {
+          const node = result.item;
+          
+          result.matches.forEach(match => {
+              if (match.key === 'data.label') {
+                  const suggestionKey = `table-${node.data.label}`;
+                  if (!addedSuggestions.has(suggestionKey)) {
+                      newSuggestions.push({ type: 'table', label: node.data.label, score: result.score });
+                      addedSuggestions.add(suggestionKey);
+                  }
+              } else if (match.key === 'data.columns.name') {
+                  const matchedColumn = node.data.columns[match.refIndex];
+                  const suggestionKey = `column-${node.data.label}-${matchedColumn.name}`;
+                  if (!addedSuggestions.has(suggestionKey)) {
+                      newSuggestions.push({ 
+                          type: 'column', 
+                          tableLabel: node.data.label, 
+                          columnLabel: matchedColumn.name, 
+                          columnId: matchedColumn.id,
+                          score: result.score
+                      });
+                      addedSuggestions.add(suggestionKey);
+                  }
+              }
+          });
       });
-      setSuggestions(newSuggestions);
+      
+      // NEW SORTING LOGIC: Prioritize exact column matches
+      newSuggestions.sort((a, b) => {
+        const aIsExactColumn = a.type === 'column' && a.columnLabel.toLowerCase() === lowerCaseQuery;
+        const bIsExactColumn = b.type === 'column' && b.columnLabel.toLowerCase() === lowerCaseQuery;
+
+        if (aIsExactColumn && !bIsExactColumn) return -1; // a comes first
+        if (!aIsExactColumn && bIsExactColumn) return 1;  // b comes first
+
+        // Then sort by fuzzy score
+        return a.score - b.score;
+      });
+
+      setSuggestions(newSuggestions.slice(0, 10)); // Limit final suggestions
     } else {
       setSuggestions([]);
     }
