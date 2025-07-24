@@ -181,7 +181,7 @@ const DataTypeIcon = ({ type }) => {
 export default memo(({ data, isConnectable, selected }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [columnSearch, setColumnSearch] = useState('');
-  const MAX_COLUMNS_COLLAPSED = 5;
+  const MAX_COLUMNS_COLLAPSED = 3;
 
   const isSource = data.resource_type === 'source';
   const headerStyle = isSource ? sourceHeaderStyle : modelHeaderStyle;
@@ -263,32 +263,6 @@ export default memo(({ data, isConnectable, selected }) => {
             }}
         />
       </div>
-
-      <div style={columnContainerStyle}>
-        {columnsToShow.map((column, index) => {
-          const isSelected = data.selectedColumn === column.id;
-          const dynamicColumnStyle = {
-            ...columnBaseStyle,
-            ...(index === columnsToShow.length - 1 ? { borderBottom: 'none' } : {}),
-            backgroundColor: isSelected ? '#e6fffa' : 'transparent',
-          };
-
-          return (
-            <div
-              key={column.id}
-              style={dynamicColumnStyle}
-              onClick={() => data.onColumnClick(column.id)}
-              onMouseOver={(e) => e.currentTarget.style.backgroundColor = isSelected ? '#e6fffa' : '#f9f9f9'}
-              onMouseOut={(e) => e.currentTarget.style.backgroundColor = isSelected ? '#e6fffa' : 'transparent'}
-            >
-              <Handle type="target" position={Position.Left} id={column.id} isConnectable={isConnectable} style={{ top: '50%', borderRadius: 0 }} />
-              <span style={columnNameStyle} title={column.name}>{column.name}</span>
-              <DataTypeIcon type={column.type} />
-              <Handle type="source" position={Position.Right} id={column.id} isConnectable={isConnectable} style={{ top: '50%', borderRadius: 0 }} />
-            </div>
-          );
-        })}
-      </div>
       
       {hasManyColumns && (
         <div
@@ -315,6 +289,32 @@ export default memo(({ data, isConnectable, selected }) => {
           )}
         </div>
       )}
+
+      <div style={columnContainerStyle}>
+        {columnsToShow.map((column, index) => {
+          const isSelected = data.selectedColumn === column.id;
+          const dynamicColumnStyle = {
+            ...columnBaseStyle,
+            ...(index === columnsToShow.length - 1 && !hasManyColumns ? { borderBottom: 'none' } : {}),
+            backgroundColor: isSelected ? '#e6fffa' : 'transparent',
+          };
+
+          return (
+            <div
+              key={column.id}
+              style={dynamicColumnStyle}
+              onClick={() => data.onColumnClick(column.id)}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = isSelected ? '#e6fffa' : '#f9f9f9'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = isSelected ? '#e6fffa' : 'transparent'}
+            >
+              <Handle type="target" position={Position.Left} id={column.id} isConnectable={isConnectable} style={{ top: '50%', borderRadius: 0 }} />
+              <span style={columnNameStyle} title={column.name}>{column.name}</span>
+              <DataTypeIcon type={column.type} />
+              <Handle type="source" position={Position.Right} id={column.id} isConnectable={isConnectable} style={{ top: '50%', borderRadius: 0 }} />
+            </div>
+          );
+        })}
+      </div>
 
       {data.tags && data.tags.length > 0 && (
         <div style={tagsFooterStyle}>
