@@ -9,7 +9,7 @@ import ReactFlow, {
   Background,
   Controls,
   MarkerType,
-  MiniMap, // Imports the MiniMap component
+  MiniMap,
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import TableNode from './TableNode';
@@ -26,16 +26,11 @@ function parseDbtNodes(manifestData, catalogData) {
     const catalogNode = allCatalogNodes[nodeId];
     if (!catalogNode) continue;
 
-    // --- FALLBACK LOGIC FOR COLUMNS (RESTORED) ---
-    // 1. Tries to get the list of column names from the manifest.
     let columnNames = Object.keys(node.columns || {});
-
-    // 2. If the manifest has no columns, uses the catalog columns as a fallback.
     if (columnNames.length === 0 && catalogNode) {
         columnNames = Object.keys(catalogNode.columns || {});
     }
 
-    // 3. Maps the list of column names to get the details for each one.
     const columns = columnNames.map((colName) => {
       const manifestCol = node.columns?.[colName] || {};
       const catalogCol = catalogNode.columns?.[colName] || {};
@@ -46,7 +41,6 @@ function parseDbtNodes(manifestData, catalogData) {
         type: catalogCol.type || 'UNKNOWN',
       };
     });
-    // --- END OF RESTORED LOGIC ---
 
     tables[nodeId] = {
       id: nodeId,
@@ -119,7 +113,6 @@ function calculateDynamicLayout(nodesData, edgesData) {
         layers.get(depth).push(nodeId);
     });
     
-    // Increased spacing to prevent collisions when expanding nodes.
     const HORIZONTAL_SPACING = 480;
     const VERTICAL_SPACING = 400;
 
@@ -157,6 +150,7 @@ function Flow() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
+  const [expandedNodes, setExpandedNodes] = useState(new Set()); // <--- NEW
 
   // --- EFFECTS ---
   // Effect 1: Runs only once on mount to fetch all data.
@@ -181,7 +175,6 @@ function Flow() {
         });
         setAvailableTags(Array.from(allTags).sort());
 
-        // Set the master data lists first. This is crucial.
         setAllNodes(parsedNodes);
         setAllEdges(parsedEdges);
 
@@ -192,11 +185,10 @@ function Flow() {
       }
     };
     fetchData();
-  }, []); // Empty dependency array ensures this runs only once on mount.
+  }, []);
 
   // Effect 2: Runs only once after the master data is loaded to apply initial URL params.
   useEffect(() => {
-    // GUARD: Only run after allNodes has been populated.
     if (allNodes.length > 0) {
         const params = new URLSearchParams(window.location.search);
         const searchParam = params.get('search');
@@ -208,11 +200,10 @@ function Flow() {
             setSelectedTags(tagsParam.split(','));
         }
     }
-  }, [allNodes]); // Depends on allNodes to ensure data is ready.
+  }, [allNodes]);
 
   // Effect 3: This effect syncs the filter state TO the URL.
   useEffect(() => {
-    // GUARD: Do not update the URL while the initial data is loading.
     if (isLoading) {
       return;
     }
@@ -229,11 +220,10 @@ function Flow() {
       : window.location.pathname;
   
     window.history.replaceState({ path: newUrl }, '', newUrl);
-  }, [searchQuery, selectedTags, isLoading]); // Add isLoading to the dependency array
+  }, [searchQuery, selectedTags, isLoading]);
 
   // Effect 4: This effect applies the filters whenever the criteria or master data change.
   useEffect(() => {
-    // GUARD: Only run if the master list of nodes is populated.
     if (allNodes.length === 0) {
         setNodes([]);
         setEdges([]);
@@ -251,7 +241,6 @@ function Flow() {
         const matchingNodeIds = new Set(matchingNodes.map(n => n.id));
         
         const relatedNodeIds = new Set(matchingNodeIds);
-
         matchingNodeIds.forEach(nodeId => {
             allEdges.forEach(edge => {
                 if (edge.source === nodeId) { relatedNodeIds.add(edge.target); }
@@ -276,7 +265,6 @@ function Flow() {
         filteredEdges = allEdges.filter(e => nodesToShowIds.has(e.source) && nodesToShowIds.has(e.target));
     }
 
-    // Recalculate layout for the filtered nodes
     const nodesDataObject = filteredNodes.reduce((acc, node) => {
         acc[node.id] = node.data;
         return acc;
@@ -299,6 +287,19 @@ function Flow() {
   }, [selectedColumn, setEdges]);
   
   // --- CALLBACK FUNCTIONS ---
+  // <--- NEW
+  const handleToggleNodeExpand = useCallback((nodeId) => {
+    setExpandedNodes(prevExpanded => {
+        const newExpanded = new Set(prevExpanded);
+        if (newExpanded.has(nodeId)) {
+            newExpanded.delete(nodeId);
+        } else {
+            newExpanded.add(nodeId);
+        }
+        return newExpanded;
+    });
+  }, []);
+
   const handleColumnClick = (columnId) => {
     setSelectedColumn(prev => (prev === columnId ? null : columnId));
   };
@@ -311,12 +312,10 @@ function Flow() {
       const addedTables = new Set();
 
       allNodes.forEach(node => {
-        // Check for table name match
         if (node.data.label.toLowerCase().includes(query.toLowerCase()) && !addedTables.has(node.data.label)) {
             newSuggestions.push({ type: 'table', label: node.data.label });
             addedTables.add(node.data.label);
         }
-        // Check for column name matches
         node.data.columns.forEach(col => {
             if (col.name.toLowerCase().includes(query.toLowerCase())) {
                 newSuggestions.push({ type: 'column', tableLabel: node.data.label, columnLabel: col.name, columnId: col.id });
@@ -327,26 +326,32 @@ function Flow() {
     } else {
       setSuggestions([]);
     }
-    setSelectedTags([]); // Clear tag filter when searching
-    setSelectedColumn(null); // Clear column highlight on new search
+    setSelectedTags([]);
+    setSelectedColumn(null);
   };
   
+  // <--- MODIFIED
   const handleSuggestionClick = (suggestion) => {
-    // When a suggestion is clicked, we always filter by the table name.
-    setSearchQuery(suggestion.tableLabel || suggestion.label);
+    const tableLabel = suggestion.tableLabel || suggestion.label;
+    setSearchQuery(tableLabel);
+
+    // Find the node from the suggestion and add its ID to the expanded set.
+    const targetNode = allNodes.find(node => node.data.label === tableLabel);
+    if (targetNode) {
+        setExpandedNodes(prev => new Set(prev).add(targetNode.id));
+    }
     
-    // If it was a column suggestion, we also highlight that column.
     if (suggestion.type === 'column') {
         setSelectedColumn(suggestion.columnId);
     } else {
-        setSelectedColumn(null); // Clear highlight if it's a table suggestion
+        setSelectedColumn(null); 
     }
     setSuggestions([]);
   };
 
   const handleTagSelectionChange = (tag) => {
     setSearchQuery('');
-    setSelectedColumn(null); // Clear column highlight when changing tags
+    setSelectedColumn(null);
     setSelectedTags(prevTags => {
         const newTags = new Set(prevTags);
         if (newTags.has(tag)) {
@@ -372,9 +377,16 @@ function Flow() {
     return <div style={{padding: 20, fontFamily: 'Arial'}}>Loading Data Lineage...</div>;
   }
 
+  // <--- MODIFIED
   const nodesWithClickHandlers = nodes.map(node => ({
     ...node,
-    data: { ...node.data, onColumnClick: handleColumnClick, selectedColumn: selectedColumn }
+    data: { 
+        ...node.data, 
+        onColumnClick: handleColumnClick, 
+        selectedColumn: selectedColumn,
+        onToggleExpand: handleToggleNodeExpand,      // Pass the handler
+        isExpanded: expandedNodes.has(node.id)       // Pass the expanded state
+    }
   }));
 
   const searchContainerStyle = {
@@ -395,34 +407,11 @@ function Flow() {
     <div style={{ height: '100vh', width: '100%', position: 'relative' }}>
       <div style={{ position: 'absolute', top: 15, left: 15, zIndex: 10, display: 'flex', gap: '15px', alignItems: 'center' }}>
         
+        {/* Search Input */}
         <div style={{position: 'relative'}}>
             <div style={searchContainerStyle}>
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="11" cy="11" r="8"></circle>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-                </svg>
-                <input 
-                    id="search" 
-                    type="text" 
-                    value={searchQuery} 
-                    onChange={handleSearchChange}
-                    onFocus={() => {
-                        setIsSearchFocused(true);
-                        setIsTagDropdownOpen(false);
-                    }}
-                    onBlur={() => setIsSearchFocused(false)}
-                    placeholder="Search table or column..." 
-                    style={{ 
-                        marginLeft: '10px',
-                        border: 'none', 
-                        outline: 'none',
-                        height: '100%',
-                        width: '250px',
-                        fontSize: '14px',
-                        backgroundColor: 'transparent',
-                    }} 
-                    autoComplete="off" 
-                />
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                <input id="search" type="text" value={searchQuery} onChange={handleSearchChange} onFocus={() => { setIsSearchFocused(true); setIsTagDropdownOpen(false); }} onBlur={() => setIsSearchFocused(false)} placeholder="Search table or column..." style={{ marginLeft: '10px', border: 'none', outline: 'none', height: '100%', width: '250px', fontSize: '14px', backgroundColor: 'transparent' }} autoComplete="off" />
             </div>
             {suggestions.length > 0 && (
                 <ul style={{ position: 'absolute', top: '110%', left: 0, right: 0, backgroundColor: 'white', border: '1px solid #eee', borderRadius: '8px', listStyle: 'none', margin: 0, padding: '5px 0', maxHeight: '200px', overflowY: 'auto', zIndex: 21, boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
@@ -435,47 +424,11 @@ function Flow() {
             )}
         </div>
         
+        {/* Tag Filter */}
         <div style={{ position: 'relative' }}>
-            <div 
-                onClick={() => setIsTagDropdownOpen(prev => !prev)} 
-                title="Filter by Tag"
-                style={{ 
-                    backgroundColor: 'white', 
-                    borderRadius: '8px', 
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '42px',
-                    height: '42px', 
-                    border: selectedTags.length > 0 ? '2px solid #00A4C9' : '1px solid #ccc'
-                }}
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
-                    <line x1="7" y1="7" x2="7.01" y2="7"></line>
-                </svg>
-                
-                {selectedTags.length > 0 && (
-                    <span style={{
-                        position: 'absolute',
-                        top: '-5px',
-                        right: '-5px',
-                        background: '#d32f2f',
-                        color: 'white',
-                        borderRadius: '50%',
-                        width: '20px',
-                        height: '20px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        fontSize: '12px',
-                        fontWeight: 'bold',
-                    }}>
-                        {selectedTags.length}
-                    </span>
-                )}
+            <div onClick={() => setIsTagDropdownOpen(prev => !prev)} title="Filter by Tag" style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '42px', height: '42px', border: selectedTags.length > 0 ? '2px solid #00A4C9' : '1px solid #ccc' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path><line x1="7" y1="7" x2="7.01" y2="7"></line></svg>
+                {selectedTags.length > 0 && ( <span style={{ position: 'absolute', top: '-5px', right: '-5px', background: '#d32f2f', color: 'white', borderRadius: '50%', width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '12px', fontWeight: 'bold' }}>{selectedTags.length}</span> )}
             </div>
             {isTagDropdownOpen && (
                 <div style={{ position: 'absolute', top: '100%', left: 0, width: '220px', background: 'white', border: '1px solid #ccc', borderRadius: '4px', marginTop: '5px', maxHeight: '300px', overflowY: 'auto', zIndex: 20, boxShadow: '0 4px 10px rgba(0,0,0,0.1)' }}>
@@ -489,29 +442,10 @@ function Flow() {
             )}
         </div>
         
-        {/* NEW: Clean Filters Button */}
+        {/* Clean Filters Button */}
         {(searchQuery || selectedTags.length > 0) && (
-            <div 
-                onClick={handleClearFilters}
-                title="Clean Filters"
-                style={{ 
-                    backgroundColor: 'white', 
-                    borderRadius: '8px', 
-                    boxShadow: '0 2px 10px rgba(0,0,0,0.2)',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '42px',
-                    height: '42px', 
-                    border: '1px solid #ccc'
-                }}
-            >
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"></path>
-                    <line x1="18.5" y1="18.5" x2="22.5" y2="22.5"></line>
-                    <line x1="22.5" y1="18.5" x2="18.5" y2="22.5"></line>
-                </svg>
+            <div onClick={handleClearFilters} title="Clean Filters" style={{ backgroundColor: 'white', borderRadius: '8px', boxShadow: '0 2px 10px rgba(0,0,0,0.2)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', width: '42px', height: '42px', border: '1px solid #ccc' }}>
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#d32f2f" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 3H2l8 9.46V19l4 2v-8.54L22 3z"></path><line x1="18.5" y1="18.5" x2="22.5" y2="22.5"></line><line x1="22.5" y1="18.5" x2="18.5" y2="22.5"></line></svg>
             </div>
         )}
       </div>
@@ -529,23 +463,18 @@ function Flow() {
       >
         <Background />
         <Controls />
-        {/* Adds the MiniMap with updated properties */}
         <MiniMap 
             pannable={true}
             zoomable={true}
             inversePan={true}
             zoomStep={5}
-            style={{
-                backgroundColor: '#f8f9fa',
-                border: '1px solid #dee2e6',
-                borderRadius: '8px',
-            }}
+            style={{ backgroundColor: '#f8f9fa', border: '1px solid #dee2e6', borderRadius: '8px' }}
             nodeColor={(node) => {
                 if (node.data.resource_type === 'source') return '#2f855a';
                 return '#2d3748';
             }}
             nodeStrokeWidth={3}
-            maskColor="rgba(233, 236, 239, 0.8)" // Less translucent mask color
+            maskColor="rgba(233, 236, 239, 0.8)"
         />
       </ReactFlow>
     </div>

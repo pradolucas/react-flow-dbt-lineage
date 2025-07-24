@@ -178,8 +178,7 @@ const DataTypeIcon = ({ type }) => {
 
 
 // --- MAIN COMPONENT ---
-export default memo(({ data, isConnectable, selected }) => {
-  const [isExpanded, setIsExpanded] = useState(false);
+export default memo(({ id, data, isConnectable, selected }) => {
   const [columnSearch, setColumnSearch] = useState('');
   const MAX_COLUMNS_COLLAPSED = 3;
 
@@ -193,7 +192,7 @@ export default memo(({ data, isConnectable, selected }) => {
   );
 
   const hasManyColumns = filteredColumns.length > MAX_COLUMNS_COLLAPSED;
-  const columnsToShow = hasManyColumns && !isExpanded 
+  const columnsToShow = hasManyColumns && !data.isExpanded 
       ? filteredColumns.slice(0, MAX_COLUMNS_COLLAPSED) 
       : filteredColumns;
 
@@ -267,12 +266,15 @@ export default memo(({ data, isConnectable, selected }) => {
       {hasManyColumns && (
         <div
             style={expanderStyle}
-            onClick={() => setIsExpanded(!isExpanded)}
+            onClick={(e) => {
+                e.stopPropagation();
+                data.onToggleExpand(id)
+            }}
             onMouseOver={(e) => e.currentTarget.style.backgroundColor = '#edf2f7'}
             onMouseOut={(e) => e.currentTarget.style.backgroundColor = '#f7fafc'}
-            title={isExpanded ? 'Hide columns' : 'Show more columns'}
+            title={data.isExpanded ? 'Hide columns' : 'Show more columns'}
         >
-          {isExpanded ? (
+          {data.isExpanded ? (
             <>
               <span style={expanderTextStyle}>Hide</span>
               <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -303,12 +305,17 @@ export default memo(({ data, isConnectable, selected }) => {
             <div
               key={column.id}
               style={dynamicColumnStyle}
-              onClick={() => data.onColumnClick(column.id)}
+              onClick={(e) => {
+                  e.stopPropagation();
+                  data.onColumnClick(column.id);
+              }}
               onMouseOver={(e) => e.currentTarget.style.backgroundColor = isSelected ? '#e6fffa' : '#f9f9f9'}
               onMouseOut={(e) => e.currentTarget.style.backgroundColor = isSelected ? '#e6fffa' : 'transparent'}
             >
               <Handle type="target" position={Position.Left} id={column.id} isConnectable={isConnectable} style={{ top: '50%', borderRadius: 0 }} />
-              <span style={columnNameStyle} title={column.name}>{column.name}</span>
+              <div style={{display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', flexGrow: 1}}>
+                <span style={columnNameStyle} title={column.name}>{column.name}</span>
+              </div>
               <DataTypeIcon type={column.type} />
               <Handle type="source" position={Position.Right} id={column.id} isConnectable={isConnectable} style={{ top: '50%', borderRadius: 0 }} />
             </div>
