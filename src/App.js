@@ -169,6 +169,9 @@ function Flow() {
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
   const [isSearchFocused, setIsSearchFocused] = useState(false);
   const [expandedNodes, setExpandedNodes] = useState(new Set());
+  const [manuallyRevealedNodeIds, setManuallyRevealedNodeIds] = useState(
+    new Set()
+  );
 
   // --- EFFECTS ---
   useEffect(() => {
@@ -233,54 +236,56 @@ function Flow() {
     window.history.replaceState({ path: newUrl }, "", newUrl);
   }, [searchQuery, selectedTags, isLoading]);
 
+  // <--- MODIFIED: Corrected filter logic to prevent multi-level expansion
   useEffect(() => {
-    if (allNodes.length === 0) {
-      setNodes([]);
-      setEdges([]);
+    if (allNodes.length === 0) return;
+
+    const baseNodes = new Set();
+    const primaryFilterIsActive = searchQuery || selectedTags.length > 0;
+
+    // Step 1: Gather base nodes from primary filters (search/tags)
+    if (primaryFilterIsActive) {
+      if (searchQuery) {
+        const matchingNodes = allNodes.filter(
+          (node) =>
+            node.data.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
+            node.data.columns.some((col) =>
+              col.name.toLowerCase().includes(searchQuery.toLowerCase())
+            )
+        );
+        matchingNodes.forEach((n) => baseNodes.add(n.id));
+      } else {
+        // Tags are selected
+        const tagNodes = allNodes.filter((n) =>
+          selectedTags.some((tag) => n.data.tags?.includes(tag))
+        );
+        tagNodes.forEach((n) => baseNodes.add(n.id));
+      }
+    }
+
+    // Step 2: Add any nodes that were manually revealed to the base set
+    manuallyRevealedNodeIds.forEach((id) => baseNodes.add(id));
+
+    // Step 3: If there are no base nodes from any source, show everything
+    if (baseNodes.size === 0) {
+      setNodes(allNodes);
+      setEdges(allEdges);
       return;
     }
 
-    let filteredNodes = allNodes;
-    let filteredEdges = allEdges;
-
-    if (searchQuery) {
-      const matchingNodes = allNodes.filter(
-        (node) =>
-          node.data.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-          node.data.columns.some((col) =>
-            col.name.toLowerCase().includes(searchQuery.toLowerCase())
-          )
-      );
-      const matchingNodeIds = new Set(matchingNodes.map((n) => n.id));
-      const relatedNodeIds = new Set(matchingNodeIds);
-      matchingNodeIds.forEach((nodeId) => {
-        allEdges.forEach((edge) => {
-          if (edge.source === nodeId) relatedNodeIds.add(edge.target);
-          if (edge.target === nodeId) relatedNodeIds.add(edge.source);
-        });
+    // Step 4: The final set to show is the base set PLUS their direct neighbors
+    const nodesToShowIds = new Set(baseNodes);
+    baseNodes.forEach((nodeId) => {
+      allEdges.forEach((edge) => {
+        if (edge.source === nodeId) nodesToShowIds.add(edge.target);
+        if (edge.target === nodeId) nodesToShowIds.add(edge.source);
       });
-      filteredNodes = allNodes.filter((n) => relatedNodeIds.has(n.id));
-      filteredEdges = allEdges.filter(
-        (e) => relatedNodeIds.has(e.source) && relatedNodeIds.has(e.target)
-      );
-    } else if (selectedTags.length > 0) {
-      const nodesToShowIds = new Set();
-      const seedNodes = allNodes.filter((n) =>
-        selectedTags.some((tag) => n.data.tags?.includes(tag))
-      );
-      seedNodes.forEach((n) => nodesToShowIds.add(n.id));
-      seedNodes.forEach((node) => {
-        allEdges.forEach((edge) => {
-          if (edge.source === node.id) nodesToShowIds.add(edge.target);
-          if (edge.target === node.id) nodesToShowIds.add(edge.source);
-        });
-      });
-      filteredNodes = allNodes.filter((n) => nodesToShowIds.has(n.id));
-      filteredEdges = allEdges.filter(
-        (e) => nodesToShowIds.has(e.source) && nodesToShowIds.has(e.target)
-      );
-    }
+    });
 
+    const filteredNodes = allNodes.filter((n) => nodesToShowIds.has(n.id));
+    const filteredEdges = allEdges.filter(
+      (e) => nodesToShowIds.has(e.source) && nodesToShowIds.has(e.target)
+    );
     const nodesDataObject = filteredNodes.reduce((acc, node) => {
       acc[node.id] = node.data;
       return acc;
@@ -292,7 +297,7 @@ function Flow() {
     );
     setNodes(relayoutedNodes);
     setEdges(filteredEdges);
-  }, [searchQuery, selectedTags, allNodes, allEdges]);
+  }, [searchQuery, selectedTags, manuallyRevealedNodeIds, allNodes, allEdges]);
 
   useEffect(() => {
     setEdges((currentEdges) =>
@@ -319,36 +324,24 @@ function Flow() {
     (nodeId) => {
       setExpandedNodes((prevExpanded) => {
         const newExpanded = new Set(prevExpanded);
-
-        // Check if we are expanding or collapsing
         if (newExpanded.has(nodeId)) {
-          // Collapsing: just remove the node
           newExpanded.delete(nodeId);
           return newExpanded;
         } else {
-          // Expanding: find connected nodes and expand them too.
           const nodesToExpand = new Set([nodeId]);
           const clickedNode = allNodes.find((n) => n.id === nodeId);
-
           if (clickedNode) {
             const allColumnIds = clickedNode.data.columns.map((col) => col.id);
-
             allEdges.forEach((edge) => {
-              const sourceInSelection = allColumnIds.includes(
-                edge.sourceHandle
-              );
-              const targetInSelection = allColumnIds.includes(
-                edge.targetHandle
-              );
-
-              if (sourceInSelection || targetInSelection) {
+              if (
+                allColumnIds.includes(edge.sourceHandle) ||
+                allColumnIds.includes(edge.targetHandle)
+              ) {
                 nodesToExpand.add(edge.source);
                 nodesToExpand.add(edge.target);
               }
             });
           }
-
-          // Return a new set by merging the previous state with the new nodes to expand
           return new Set([...newExpanded, ...nodesToExpand]);
         }
       });
@@ -365,6 +358,9 @@ function Flow() {
   const handleSearchChange = (event) => {
     const query = event.target.value;
     setSearchQuery(query);
+    setManuallyRevealedNodeIds(new Set());
+    setSelectedTags([]);
+    setSelectedColumns([]);
     if (query) {
       const newSuggestions = [];
       const addedTables = new Set();
@@ -391,28 +387,24 @@ function Flow() {
     } else {
       setSuggestions([]);
     }
-    setSelectedTags([]);
-    setSelectedColumns([]);
   };
 
   const handleSuggestionClick = (suggestion) => {
     const tableLabel = suggestion.tableLabel || suggestion.label;
     setSearchQuery(tableLabel);
-
+    setManuallyRevealedNodeIds(new Set());
     const targetNode = allNodes.find((node) => node.data.label === tableLabel);
     if (targetNode) {
       const nodesToExpand = new Set([targetNode.id]);
       let columnsToSelect = [];
-
       if (suggestion.type === "table") {
         const allColumnIds = targetNode.data.columns.map((col) => col.id);
         columnsToSelect = allColumnIds;
-
         allEdges.forEach((edge) => {
-          const sourceInSelection = allColumnIds.includes(edge.sourceHandle);
-          const targetInSelection = allColumnIds.includes(edge.targetHandle);
-
-          if (sourceInSelection || targetInSelection) {
+          if (
+            allColumnIds.includes(edge.sourceHandle) ||
+            allColumnIds.includes(edge.targetHandle)
+          ) {
             nodesToExpand.add(edge.source);
             nodesToExpand.add(edge.target);
           }
@@ -429,33 +421,27 @@ function Flow() {
           }
         });
       }
-
       setSelectedColumns(columnsToSelect);
       setExpandedNodes((prev) => new Set([...prev, ...nodesToExpand]));
     }
     setSuggestions([]);
   };
 
-  // <--- NEW: Function to handle clicking on a node
   const handleNodeClick = useCallback(
     (event, node) => {
       const targetNode = allNodes.find((n) => n.id === node.id);
       if (!targetNode) return;
-
       const nodesToExpand = new Set([targetNode.id]);
       const allColumnIds = targetNode.data.columns.map((col) => col.id);
-
-      // Find all nodes connected to this table's columns
       allEdges.forEach((edge) => {
-        const sourceInSelection = allColumnIds.includes(edge.sourceHandle);
-        const targetInSelection = allColumnIds.includes(edge.targetHandle);
-
-        if (sourceInSelection || targetInSelection) {
+        if (
+          allColumnIds.includes(edge.sourceHandle) ||
+          allColumnIds.includes(edge.targetHandle)
+        ) {
           nodesToExpand.add(edge.source);
           nodesToExpand.add(edge.target);
         }
       });
-
       setSelectedColumns(allColumnIds);
       setExpandedNodes((prev) => new Set([...prev, ...nodesToExpand]));
     },
@@ -464,6 +450,7 @@ function Flow() {
 
   const handleTagSelectionChange = (tag) => {
     setSearchQuery("");
+    setManuallyRevealedNodeIds(new Set());
     setSelectedColumns([]);
     setSelectedTags((prevTags) => {
       const newTags = new Set(prevTags);
@@ -473,11 +460,17 @@ function Flow() {
     });
   };
 
+  // <--- MODIFIED: Corrected logic to only add the clicked node to the set
+  const handleRevealNeighbors = useCallback((nodeId) => {
+    setManuallyRevealedNodeIds((prev) => new Set([...prev, nodeId]));
+  }, []);
+
   const handleClearFilters = () => {
     setSearchQuery("");
     setSelectedTags([]);
     setSuggestions([]);
     setSelectedColumns([]);
+    setManuallyRevealedNodeIds(new Set());
   };
 
   const onConnect = useCallback(
@@ -502,6 +495,7 @@ function Flow() {
       selectedColumns: selectedColumns,
       onToggleExpand: handleToggleNodeExpand,
       isExpanded: expandedNodes.has(node.id),
+      onRevealNeighbors: handleRevealNeighbors,
     },
   }));
 
@@ -560,7 +554,9 @@ function Flow() {
                 setIsSearchFocused(true);
                 setIsTagDropdownOpen(false);
               }}
-              onBlur={() => setIsSearchFocused(false)}
+              onBlur={() => {
+                setTimeout(() => setIsSearchFocused(false), 200);
+              }}
               placeholder="Search table or column..."
               style={{
                 marginLeft: "10px",
@@ -574,7 +570,7 @@ function Flow() {
               autoComplete="off"
             />
           </div>
-          {suggestions.length > 0 && (
+          {isSearchFocused && suggestions.length > 0 && (
             <ul
               style={{
                 position: "absolute",
@@ -722,7 +718,8 @@ function Flow() {
         {/* Clear Filters Button */}
         {(searchQuery ||
           selectedTags.length > 0 ||
-          selectedColumns.length > 0) && (
+          selectedColumns.length > 0 ||
+          manuallyRevealedNodeIds.size > 0) && (
           <div
             onClick={handleClearFilters}
             title="Clear Filters & Selections"
@@ -764,10 +761,13 @@ function Flow() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
-        onNodeClick={handleNodeClick} // <--- MODIFIED: Added the new prop
+        onNodeClick={handleNodeClick}
         fitView
         panOnScroll
-        onPaneClick={() => setIsTagDropdownOpen(false)}
+        onPaneClick={() => {
+          setIsTagDropdownOpen(false);
+          setSelectedColumns([]);
+        }}
       >
         <Background />
         <Controls />

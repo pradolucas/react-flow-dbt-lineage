@@ -11,6 +11,7 @@ const nodeStyle = {
   fontFamily: "'Inter', sans-serif",
   boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
   transition: "border-color 0.2s, box-shadow 0.2s",
+  position: "relative", // Needed for positioning the button
 };
 
 const nodeHighlightStyle = {
@@ -104,6 +105,25 @@ const columnSearchStyle = {
   borderBottom: "1px solid #eee",
   display: "flex",
   alignItems: "center",
+};
+
+// <--- MODIFIED: Style for the lineage expansion button
+const lineageButtonStyle = {
+  position: "absolute",
+  top: "10px",
+  right: "-18px",
+  backgroundColor: "white",
+  width: "36px",
+  height: "36px",
+  borderRadius: "50%",
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "center",
+  border: "1px solid #d1d5db",
+  boxShadow: "0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1)",
+  cursor: "pointer",
+  zIndex: 10,
+  transition: "all 0.2s ease-in-out",
 };
 
 // --- DATA TYPE ICON COMPONENT ---
@@ -361,6 +381,7 @@ const DataTypeIcon = ({ type }) => {
 // --- MAIN COMPONENT ---
 export default memo(({ id, data, isConnectable, selected }) => {
   const [columnSearch, setColumnSearch] = useState("");
+  const [isHovered, setIsHovered] = useState(false);
   const MAX_COLUMNS_COLLAPSED = 3;
 
   const isSource = data.resource_type === "source";
@@ -380,7 +401,42 @@ export default memo(({ id, data, isConnectable, selected }) => {
       : filteredColumns;
 
   return (
-    <div style={dynamicNodeStyle}>
+    <div
+      style={dynamicNodeStyle}
+      onMouseEnter={() => setIsHovered(true)}
+      onMouseLeave={() => setIsHovered(false)}
+    >
+      {isHovered && (
+        <div
+          title="Reveal Neighbors"
+          style={lineageButtonStyle}
+          onClick={(e) => {
+            e.stopPropagation();
+            data.onRevealNeighbors(id);
+          }}
+          onMouseOver={(e) => (e.currentTarget.style.borderColor = "#3b82f6")}
+          onMouseOut={(e) => (e.currentTarget.style.borderColor = "#d1d5db")}
+        >
+          {/* <--- MODIFIED: New, more intuitive branching icon ---> */}
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            width="20"
+            height="20"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="#374151"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <line x1="6" y1="3" x2="6" y2="15"></line>
+            <circle cx="18" cy="6" r="3"></circle>
+            <circle cx="6" cy="18" r="3"></circle>
+            <path d="M18 9a9 9 0 0 1-9 9"></path>
+          </svg>
+        </div>
+      )}
+
       <div style={headerStyle}>
         <div
           style={{ display: "flex", alignItems: "center", overflow: "hidden" }}
@@ -398,9 +454,10 @@ export default memo(({ id, data, isConnectable, selected }) => {
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
+                {" "}
+                <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>{" "}
+                <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>{" "}
+                <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>{" "}
               </svg>
             ) : (
               <svg
@@ -414,9 +471,17 @@ export default memo(({ id, data, isConnectable, selected }) => {
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-                <line x1="3" y1="9" x2="21" y2="9"></line>
-                <line x1="9" y1="21" x2="9" y2="9"></line>
+                {" "}
+                <rect
+                  x="3"
+                  y="3"
+                  width="18"
+                  height="18"
+                  rx="2"
+                  ry="2"
+                ></rect>{" "}
+                <line x1="3" y1="9" x2="21" y2="9"></line>{" "}
+                <line x1="9" y1="21" x2="9" y2="9"></line>{" "}
               </svg>
             )}
           </div>
@@ -486,8 +551,9 @@ export default memo(({ id, data, isConnectable, selected }) => {
             strokeLinecap="round"
             strokeLinejoin="round"
           >
-            <circle cx="11" cy="11" r="8"></circle>
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            {" "}
+            <circle cx="11" cy="11" r="8"></circle>{" "}
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>{" "}
           </svg>
         </span>
         <input
@@ -536,7 +602,8 @@ export default memo(({ id, data, isConnectable, selected }) => {
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <polyline points="18 15 12 9 6 15"></polyline>
+                {" "}
+                <polyline points="18 15 12 9 6 15"></polyline>{" "}
               </svg>
             </>
           ) : (
@@ -555,7 +622,8 @@ export default memo(({ id, data, isConnectable, selected }) => {
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <polyline points="6 9 12 15 18 9"></polyline>
+                {" "}
+                <polyline points="6 9 12 15 18 9"></polyline>{" "}
               </svg>
             </>
           )}
@@ -564,7 +632,6 @@ export default memo(({ id, data, isConnectable, selected }) => {
 
       <div style={columnContainerStyle}>
         {columnsToShow.map((column, index) => {
-          // <--- MODIFIED: Check if column ID is in the array of selected columns
           const isSelected = data.selectedColumns.includes(column.id);
           const dynamicColumnStyle = {
             ...columnBaseStyle,
@@ -610,6 +677,7 @@ export default memo(({ id, data, isConnectable, selected }) => {
                 }}
               >
                 <span style={columnNameStyle} title={column.name}>
+                  {" "}
                   {column.name}
                 </span>
               </div>
