@@ -363,20 +363,47 @@ function Flow() {
     setSelectedColumns([]);
   };
 
+  // <--- MODIFIED: This function now expands all connected nodes
   const handleSuggestionClick = (suggestion) => {
     const tableLabel = suggestion.tableLabel || suggestion.label;
     setSearchQuery(tableLabel);
 
     const targetNode = allNodes.find((node) => node.data.label === tableLabel);
     if (targetNode) {
-      setExpandedNodes((prev) => new Set(prev).add(targetNode.id));
+      const nodesToExpand = new Set([targetNode.id]);
+      let columnsToSelect = [];
 
       if (suggestion.type === "table") {
         const allColumnIds = targetNode.data.columns.map((col) => col.id);
-        setSelectedColumns(allColumnIds);
+        columnsToSelect = allColumnIds;
+
+        // Find all nodes connected to this table's columns
+        allEdges.forEach((edge) => {
+          const sourceInSelection = allColumnIds.includes(edge.sourceHandle);
+          const targetInSelection = allColumnIds.includes(edge.targetHandle);
+
+          if (sourceInSelection || targetInSelection) {
+            nodesToExpand.add(edge.source);
+            nodesToExpand.add(edge.target);
+          }
+        });
       } else {
-        setSelectedColumns([suggestion.columnId]);
+        // Also handle single column selection to expand its lineage
+        columnsToSelect = [suggestion.columnId];
+        allEdges.forEach((edge) => {
+          if (
+            edge.sourceHandle === suggestion.columnId ||
+            edge.targetHandle === suggestion.columnId
+          ) {
+            nodesToExpand.add(edge.source);
+            nodesToExpand.add(edge.target);
+          }
+        });
       }
+
+      setSelectedColumns(columnsToSelect);
+      // Add the newly found nodes to the existing set of expanded nodes
+      setExpandedNodes((prev) => new Set([...prev, ...nodesToExpand]));
     }
     setSuggestions([]);
   };
