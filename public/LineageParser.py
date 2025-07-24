@@ -3,6 +3,7 @@ import sqlglot
 from sqlglot import exp
 import sqlglot.lineage as lineage
 from sqlglot.optimizer.optimizer import optimize
+from sqlglot.optimizer.qualify_columns import qualify_columns
 from sqlglot.schema import MappingSchema
 from typing import Dict, List, Tuple, Set, Any, Optional
 
@@ -84,15 +85,26 @@ class LineageParser:
                     full_table_name = f"{database}.{schema_name}.{table_name}"
                     table_to_model_map[full_table_name.lower()] = node_id
                     
+                    node_columns = self._get_node_columns(node_id)
+                    
+                    
                     # Build the nested schema_map in the format {catalog: {db: {table: {cols}}}}
+                    if not node_columns:
+                        print(f"WARNING: No columns found for {full_table_name}.")
+                        continue
+
+                    columns = {
+                        col_name: col_info.get("type", "UNKNOWN")
+                        for col_name, col_info in node_columns.items()
+                    }
+
                     if database not in schema_map_dict:
                         schema_map_dict[database] = {}
                     if schema_name not in schema_map_dict[database]:
                         schema_map_dict[database][schema_name] = {}
                     
-                    node_columns = self._get_node_columns(node_id)
                     # The schema requires a set of column names
-                    schema_map_dict[database][schema_name][table_name] = set(node_columns.keys())
+                    schema_map_dict[database][schema_name][table_name] = columns
 
         # Return a MappingSchema instance for robust type handling in sqlglot
         return MappingSchema(schema_map_dict), table_to_model_map
@@ -257,7 +269,8 @@ class LineageParser:
                     # Pre-process the SQL once per model for efficiency
                     parsed_sql = sqlglot.parse_one(sql, read="postgres")
                     qualified_sql = parsed_sql.qualify(schema=self.schema, dialect="postgres", quote_identifiers=False)
-                    optimized_sql = optimize(qualified_sql, schema=self.schema)
+                    qualified_sql = qualify_columns(parsed_sql, schema=self.schema, dialect="postgres", infer_schema=True)
+                    optimized_sql = optimize(qualified_sql, schema=self.schema, dialect='postgres', infer_schema=True)
                     table_alias_map = self._generate_table_alias_map(optimized_sql)
                 except Exception as e:
                     print(f"Could not parse or qualify model {node_id}: {e}")
