@@ -315,14 +315,49 @@ function Flow() {
   }, [selectedColumns, setEdges]);
 
   // --- CALLBACK FUNCTIONS ---
-  const handleToggleNodeExpand = useCallback((nodeId) => {
-    setExpandedNodes((prevExpanded) => {
-      const newExpanded = new Set(prevExpanded);
-      if (newExpanded.has(nodeId)) newExpanded.delete(nodeId);
-      else newExpanded.add(nodeId);
-      return newExpanded;
-    });
-  }, []);
+  // <--- MODIFIED: This function now expands connected nodes when a user clicks to expand.
+  const handleToggleNodeExpand = useCallback(
+    (nodeId) => {
+      setExpandedNodes((prevExpanded) => {
+        const newExpanded = new Set(prevExpanded);
+
+        // Check if we are expanding or collapsing
+        if (newExpanded.has(nodeId)) {
+          // Collapsing: just remove the node
+          newExpanded.delete(nodeId);
+          return newExpanded;
+        } else {
+          // Expanding: find connected nodes and expand them too.
+          const nodesToExpand = new Set([nodeId]);
+          const clickedNode = allNodes.find((n) => n.id === nodeId);
+
+          if (clickedNode) {
+            const allColumnIds = clickedNode.data.columns.map(
+              (col) => col.id
+            );
+
+            allEdges.forEach((edge) => {
+              const sourceInSelection = allColumnIds.includes(
+                edge.sourceHandle
+              );
+              const targetInSelection = allColumnIds.includes(
+                edge.targetHandle
+              );
+
+              if (sourceInSelection || targetInSelection) {
+                nodesToExpand.add(edge.source);
+                nodesToExpand.add(edge.target);
+              }
+            });
+          }
+
+          // Return a new set by merging the previous state with the new nodes to expand
+          return new Set([...newExpanded, ...nodesToExpand]);
+        }
+      });
+    },
+    [allNodes, allEdges]
+  ); // <--- MODIFIED: Added dependencies
 
   const handleColumnClick = (columnId) => {
     setSelectedColumns((prev) =>
@@ -363,7 +398,6 @@ function Flow() {
     setSelectedColumns([]);
   };
 
-  // <--- MODIFIED: This function now expands all connected nodes
   const handleSuggestionClick = (suggestion) => {
     const tableLabel = suggestion.tableLabel || suggestion.label;
     setSearchQuery(tableLabel);
