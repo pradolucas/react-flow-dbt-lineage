@@ -315,7 +315,6 @@ function Flow() {
   }, [selectedColumns, setEdges]);
 
   // --- CALLBACK FUNCTIONS ---
-  // <--- MODIFIED: This function now expands connected nodes when a user clicks to expand.
   const handleToggleNodeExpand = useCallback(
     (nodeId) => {
       setExpandedNodes((prevExpanded) => {
@@ -332,9 +331,7 @@ function Flow() {
           const clickedNode = allNodes.find((n) => n.id === nodeId);
 
           if (clickedNode) {
-            const allColumnIds = clickedNode.data.columns.map(
-              (col) => col.id
-            );
+            const allColumnIds = clickedNode.data.columns.map((col) => col.id);
 
             allEdges.forEach((edge) => {
               const sourceInSelection = allColumnIds.includes(
@@ -357,7 +354,7 @@ function Flow() {
       });
     },
     [allNodes, allEdges]
-  ); // <--- MODIFIED: Added dependencies
+  );
 
   const handleColumnClick = (columnId) => {
     setSelectedColumns((prev) =>
@@ -411,7 +408,6 @@ function Flow() {
         const allColumnIds = targetNode.data.columns.map((col) => col.id);
         columnsToSelect = allColumnIds;
 
-        // Find all nodes connected to this table's columns
         allEdges.forEach((edge) => {
           const sourceInSelection = allColumnIds.includes(edge.sourceHandle);
           const targetInSelection = allColumnIds.includes(edge.targetHandle);
@@ -422,7 +418,6 @@ function Flow() {
           }
         });
       } else {
-        // Also handle single column selection to expand its lineage
         columnsToSelect = [suggestion.columnId];
         allEdges.forEach((edge) => {
           if (
@@ -436,11 +431,36 @@ function Flow() {
       }
 
       setSelectedColumns(columnsToSelect);
-      // Add the newly found nodes to the existing set of expanded nodes
       setExpandedNodes((prev) => new Set([...prev, ...nodesToExpand]));
     }
     setSuggestions([]);
   };
+
+  // <--- NEW: Function to handle clicking on a node
+  const handleNodeClick = useCallback(
+    (event, node) => {
+      const targetNode = allNodes.find((n) => n.id === node.id);
+      if (!targetNode) return;
+
+      const nodesToExpand = new Set([targetNode.id]);
+      const allColumnIds = targetNode.data.columns.map((col) => col.id);
+
+      // Find all nodes connected to this table's columns
+      allEdges.forEach((edge) => {
+        const sourceInSelection = allColumnIds.includes(edge.sourceHandle);
+        const targetInSelection = allColumnIds.includes(edge.targetHandle);
+
+        if (sourceInSelection || targetInSelection) {
+          nodesToExpand.add(edge.source);
+          nodesToExpand.add(edge.target);
+        }
+      });
+
+      setSelectedColumns(allColumnIds);
+      setExpandedNodes((prev) => new Set([...prev, ...nodesToExpand]));
+    },
+    [allNodes, allEdges]
+  );
 
   const handleTagSelectionChange = (tag) => {
     setSearchQuery("");
@@ -744,6 +764,7 @@ function Flow() {
         onEdgesChange={onEdgesChange}
         onConnect={onConnect}
         nodeTypes={nodeTypes}
+        onNodeClick={handleNodeClick} // <--- MODIFIED: Added the new prop
         fitView
         panOnScroll
         onPaneClick={() => setIsTagDropdownOpen(false)}
