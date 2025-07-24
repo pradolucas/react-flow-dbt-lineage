@@ -110,7 +110,7 @@ const columnSearchStyle = {
 // <--- MODIFIED: Style for the lineage expansion button
 const lineageButtonStyle = {
   position: "absolute",
-  top: "10px",
+  top: "-18px",
   right: "-18px",
   backgroundColor: "white",
   width: "36px",
@@ -417,7 +417,6 @@ export default memo(({ id, data, isConnectable, selected }) => {
           onMouseOver={(e) => (e.currentTarget.style.borderColor = "#3b82f6")}
           onMouseOut={(e) => (e.currentTarget.style.borderColor = "#d1d5db")}
         >
-          {/* <--- MODIFIED: New, more intuitive branching icon ---> */}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             width="20"
@@ -439,7 +438,11 @@ export default memo(({ id, data, isConnectable, selected }) => {
 
       <div style={headerStyle}>
         <div
-          style={{ display: "flex", alignItems: "center", overflow: "hidden" }}
+          style={{
+            display: "flex",
+            alignItems: "center",
+            overflow: "hidden",
+          }}
         >
           <div style={iconStyle}>
             {isSource ? (
@@ -486,7 +489,7 @@ export default memo(({ id, data, isConnectable, selected }) => {
             )}
           </div>
           <div
-            style={{ overflow: "hidden" }}
+            style={{ overflow: "hidden", minWidth: 0 }}
             title={`${data.database}.${data.schema}.${data.label}`}
           >
             <div style={tableNameStyle}>{data.label}</div>
@@ -504,13 +507,10 @@ export default memo(({ id, data, isConnectable, selected }) => {
             onClick={(e) => e.stopPropagation()}
             style={{
               color: "white",
-              opacity: 0.7,
-              transition: "opacity 0.2s",
+              opacity: 1,
               flexShrink: 0,
               marginLeft: "10px",
             }}
-            onMouseOver={(e) => (e.currentTarget.style.opacity = 1)}
-            onMouseOut={(e) => (e.currentTarget.style.opacity = 0.7)}
           >
             <svg
               xmlns="http://www.w3.org/2000/svg"
