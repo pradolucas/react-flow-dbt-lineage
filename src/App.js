@@ -112,14 +112,13 @@ function parseTableLevelEdges(lineageNodes) {
           target: targetModelId,
           sourceHandle: "table-dependency-source",
           targetHandle: "table-dependency-target",
-          // <--- MODIFIED: Changed edge type to default for a smoother curve --->
           type: "default",
           style: {
             stroke: "#adb5bd",
             strokeWidth: 2,
             strokeDasharray: "5 5",
           },
-          zIndex: -1, // Render behind column-level edges
+          zIndex: -1,
         });
       });
     }
@@ -201,6 +200,7 @@ function Flow() {
     new Set()
   );
   const [lineageDate, setLineageDate] = useState("");
+  const [selectedTableConnection, setSelectedTableConnection] = useState(null);
 
   // --- EFFECTS ---
   useEffect(() => {
@@ -219,7 +219,6 @@ function Flow() {
         }
 
         const tableData = parseDbtNodes(manifestData, catalogData);
-
         const columnEdges = parseSqlLineageEdges(lineageJson.nodes, tableData);
         const tableEdges = parseTableLevelEdges(lineageJson.nodes);
         const parsedEdges = [...columnEdges, ...tableEdges];
@@ -273,14 +272,12 @@ function Flow() {
     window.history.replaceState({ path: newUrl }, "", newUrl);
   }, [searchQuery, selectedTags, isLoading]);
 
-  // <--- MODIFIED: Corrected filter logic to prevent multi-level expansion
   useEffect(() => {
     if (allNodes.length === 0) return;
 
     const baseNodes = new Set();
     const primaryFilterIsActive = searchQuery || selectedTags.length > 0;
 
-    // Step 1: Gather base nodes from primary filters (search/tags)
     if (primaryFilterIsActive) {
       if (searchQuery) {
         const matchingNodes = allNodes.filter(
@@ -292,7 +289,6 @@ function Flow() {
         );
         matchingNodes.forEach((n) => baseNodes.add(n.id));
       } else {
-        // Tags are selected
         const tagNodes = allNodes.filter((n) =>
           selectedTags.some((tag) => n.data.tags?.includes(tag))
         );
@@ -300,17 +296,14 @@ function Flow() {
       }
     }
 
-    // Step 2: Add any nodes that were manually revealed to the base set
     manuallyRevealedNodeIds.forEach((id) => baseNodes.add(id));
 
-    // Step 3: If there are no base nodes from any source, show everything
     if (baseNodes.size === 0) {
       setNodes(allNodes);
       setEdges(allEdges);
       return;
     }
 
-    // Step 4: The final set to show is the base set PLUS their direct neighbors
     const nodesToShowIds = new Set(baseNodes);
     baseNodes.forEach((nodeId) => {
       allEdges.forEach((edge) => {
@@ -336,25 +329,55 @@ function Flow() {
     setEdges(filteredEdges);
   }, [searchQuery, selectedTags, manuallyRevealedNodeIds, allNodes, allEdges]);
 
+  // <--- MODIFIED: Differentiated highlight colors --->
   useEffect(() => {
     setEdges((currentEdges) =>
       currentEdges.map((edge) => {
-        const isHighlighted =
-          selectedColumns.includes(edge.sourceHandle) ||
-          selectedColumns.includes(edge.targetHandle);
+        const isColumnEdge = !edge.id.startsWith("e-table-");
+        const isTableEdge = edge.id.startsWith("e-table-");
+
+        const isColumnHighlighted =
+          isColumnEdge &&
+          (selectedColumns.includes(edge.sourceHandle) ||
+            selectedColumns.includes(edge.targetHandle));
+
+        let isTableHighlighted = false;
+        if (isTableEdge && selectedTableConnection) {
+          isTableHighlighted =
+            edge.id === selectedTableConnection ||
+            edge.source === selectedTableConnection ||
+            edge.target === selectedTableConnection;
+        }
+
+        const defaultStyle = isTableEdge
+          ? { stroke: "#adb5bd", strokeWidth: 2 }
+          : { stroke: "#b1b1b7", strokeWidth: 1.5 };
+
+        let newStroke = defaultStyle.stroke;
+        let newStrokeWidth = defaultStyle.strokeWidth;
+
+        if (isColumnHighlighted) {
+          newStroke = "#00A4C9"; // Blue for columns
+          newStrokeWidth = 2.5;
+        } else if (isTableHighlighted) {
+          newStroke = "#9d4edd"; // Purple for tables
+          newStrokeWidth = 2.5;
+        }
+
         return {
           ...edge,
-          animated: isHighlighted,
+          animated: isColumnHighlighted,
           style: {
             ...edge.style,
-            stroke: isHighlighted ? "#00A4C9" : edge.style.stroke,
-            strokeWidth: isHighlighted ? 2.5 : edge.style.strokeWidth,
+            stroke: newStroke,
+            strokeWidth: newStrokeWidth,
           },
-          zIndex: isHighlighted ? 100 : edge.zIndex,
+          zIndex:
+            isColumnHighlighted || isTableHighlighted ? 1000 : edge.zIndex || 0,
         };
       })
     );
-  }, [selectedColumns, setEdges]);
+  }, [selectedColumns, selectedTableConnection, setEdges]);
 
   // --- CALLBACK FUNCTIONS ---
   const handleToggleNodeExpand = useCallback(
@@ -387,6 +410,7 @@ function Flow() {
   );
 
   const handleColumnClick = (columnId) => {
+    setSelectedTableConnection(null);
     setSelectedColumns((prev) =>
       prev.length === 1 && prev[0] === columnId ? [] : [columnId]
     );
@@ -398,6 +422,7 @@ function Flow() {
     setManuallyRevealedNodeIds(new Set());
     setSelectedTags([]);
     setSelectedColumns([]);
+    setSelectedTableConnection(null);
     if (query) {
       const newSuggestions = [];
       const addedTables = new Set();
@@ -433,21 +458,30 @@ function Flow() {
     const targetNode = allNodes.find((node) => node.data.label === tableLabel);
     if (targetNode) {
       const nodesToExpand = new Set([targetNode.id]);
-      let columnsToSelect = [];
+      const isAlreadySelected = selectedTableConnection === targetNode.id;
+
       if (suggestion.type === "table") {
-        const allColumnIds = targetNode.data.columns.map((col) => col.id);
-        columnsToSelect = allColumnIds;
-        allEdges.forEach((edge) => {
-          if (
-            allColumnIds.includes(edge.sourceHandle) ||
-            allColumnIds.includes(edge.targetHandle)
-          ) {
-            nodesToExpand.add(edge.source);
-            nodesToExpand.add(edge.target);
-          }
-        });
+        if (isAlreadySelected) {
+          setSelectedColumns([]);
+          setSelectedTableConnection(null);
+        } else {
+          const allColumnIds = targetNode.data.columns.map((col) => col.id);
+          setSelectedColumns(allColumnIds);
+          setSelectedTableConnection(targetNode.id);
+          allEdges.forEach((edge) => {
+            if (
+              allColumnIds.includes(edge.sourceHandle) ||
+              allColumnIds.includes(edge.targetHandle)
+            ) {
+              nodesToExpand.add(edge.source);
+              nodesToExpand.add(edge.target);
+            }
+          });
+          setExpandedNodes((prev) => new Set([...prev, ...nodesToExpand]));
+        }
       } else {
-        columnsToSelect = [suggestion.columnId];
+        setSelectedColumns([suggestion.columnId]);
+        setSelectedTableConnection(null);
         allEdges.forEach((edge) => {
           if (
             edge.sourceHandle === suggestion.columnId ||
@@ -457,17 +491,25 @@ function Flow() {
             nodesToExpand.add(edge.target);
           }
         });
+        setExpandedNodes((prev) => new Set([...prev, ...nodesToExpand]));
       }
-      setSelectedColumns(columnsToSelect);
-      setExpandedNodes((prev) => new Set([...prev, ...nodesToExpand]));
     }
     setSuggestions([]);
   };
 
   const handleNodeClick = useCallback(
     (event, node) => {
+      const isAlreadySelected =
+        selectedTableConnection === node.id && selectedColumns.length > 0;
+      if (isAlreadySelected) {
+        setSelectedColumns([]);
+        setSelectedTableConnection(null);
+        return;
+      }
+
       const targetNode = allNodes.find((n) => n.id === node.id);
       if (!targetNode) return;
+
       const nodesToExpand = new Set([targetNode.id]);
       const allColumnIds = targetNode.data.columns.map((col) => col.id);
       allEdges.forEach((edge) => {
@@ -480,15 +522,24 @@ function Flow() {
         }
       });
       setSelectedColumns(allColumnIds);
+      setSelectedTableConnection(targetNode.id);
       setExpandedNodes((prev) => new Set([...prev, ...nodesToExpand]));
     },
-    [allNodes, allEdges]
+    [allNodes, allEdges, selectedTableConnection, selectedColumns]
   );
+
+  const handleEdgeClick = useCallback((event, edge) => {
+    if (edge.id.startsWith("e-table-")) {
+      setSelectedColumns([]);
+      setSelectedTableConnection((prev) => (prev === edge.id ? null : edge.id));
+    }
+  }, []);
 
   const handleTagSelectionChange = (tag) => {
     setSearchQuery("");
     setManuallyRevealedNodeIds(new Set());
     setSelectedColumns([]);
+    setSelectedTableConnection(null);
     setSelectedTags((prevTags) => {
       const newTags = new Set(prevTags);
       if (newTags.has(tag)) newTags.delete(tag);
@@ -497,7 +548,6 @@ function Flow() {
     });
   };
 
-  // <--- MODIFIED: Corrected logic to only add the clicked node to the set
   const handleRevealNeighbors = useCallback((nodeId) => {
     setManuallyRevealedNodeIds((prev) => new Set([...prev, nodeId]));
   }, []);
@@ -508,6 +558,7 @@ function Flow() {
     setSuggestions([]);
     setSelectedColumns([]);
     setManuallyRevealedNodeIds(new Set());
+    setSelectedTableConnection(null);
   };
 
   const onConnect = useCallback(
@@ -823,11 +874,13 @@ function Flow() {
         onConnect={onConnect}
         nodeTypes={nodeTypes}
         onNodeClick={handleNodeClick}
+        onEdgeClick={handleEdgeClick}
         fitView
         panOnScroll
         onPaneClick={() => {
           setIsTagDropdownOpen(false);
           setSelectedColumns([]);
+          setSelectedTableConnection(null);
         }}
       >
         <Background />
