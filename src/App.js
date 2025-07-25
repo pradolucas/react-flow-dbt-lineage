@@ -172,6 +172,8 @@ function Flow() {
   const [manuallyRevealedNodeIds, setManuallyRevealedNodeIds] = useState(
     new Set()
   );
+  // <--- NEW: State for the lineage date
+  const [lineageDate, setLineageDate] = useState("");
 
   // --- EFFECTS ---
   useEffect(() => {
@@ -183,10 +185,15 @@ function Flow() {
 
         const manifestData = await manifestRes.json();
         const catalogData = await catalogRes.json();
-        const lineageData = await lineageRes.json();
+        const lineageJson = await lineageRes.json();
+
+        // <--- NEW: Set the lineage date from the fetched file
+        if (lineageJson.date_parsed) {
+          setLineageDate(lineageJson.date_parsed);
+        }
 
         const tableData = parseDbtNodes(manifestData, catalogData);
-        const parsedEdges = parseSqlLineageEdges(lineageData, tableData);
+        const parsedEdges = parseSqlLineageEdges(lineageJson.nodes, tableData);
         const parsedNodes = calculateDynamicLayout(tableData, parsedEdges);
 
         const allTags = new Set();
@@ -499,6 +506,10 @@ function Flow() {
     },
   }));
 
+  const formattedDate = lineageDate
+    ? new Date(lineageDate).toLocaleString()
+    : "N/A";
+
   const searchContainerStyle = {
     position: "relative",
     backgroundColor: "white",
@@ -753,6 +764,27 @@ function Flow() {
           </div>
         )}
       </div>
+
+      {/* <--- NEW: Timestamp display ---> */}
+      {lineageDate && (
+        <div
+          style={{
+            position: "absolute",
+            top: 15,
+            right: 15,
+            zIndex: 10,
+            backgroundColor: "rgba(255, 255, 255, 0.9)",
+            padding: "6px 12px",
+            borderRadius: "6px",
+            fontFamily: "Arial, sans-serif",
+            fontSize: "12px",
+            color: "#374151",
+            boxShadow: "0 2px 10px rgba(0,0,0,0.1)",
+          }}
+        >
+          <strong>Last Updated:</strong> {formattedDate}
+        </div>
+      )}
 
       <ReactFlow
         nodes={nodesWithClickHandlers}

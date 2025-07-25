@@ -6,6 +6,7 @@ from sqlglot.optimizer.optimizer import optimize
 from sqlglot.optimizer.qualify_columns import qualify_columns
 from sqlglot.schema import MappingSchema
 from typing import Dict, List, Tuple, Set, Any, Optional
+from datetime import datetime
 
 def load_json_file(filepath: str) -> Dict[str, Any]:
     """
@@ -38,6 +39,7 @@ class LineageParser:
         self.manifest_data = manifest_data
         self.catalog_data = catalog_data
         self.schema, self.table_to_model_map = self._generate_helper_maps()
+        self.errors: Dict[str, List[str]] = {}
 
     def _get_node_columns(self, node_id: str) -> Dict[str, Any]:
         """
@@ -257,13 +259,19 @@ class LineageParser:
     def generate_lineage(self) -> Dict[str, Any]:
         """
         The main orchestrator method. It iterates over all models and their columns
-        to generate the complete, end-to-end lineage map.
+        to generate the complete, end-to-end lineage map and a dictionary of errors,
+        returned as a single dictionary.
         """
-        full_result: Dict[str, Any] = {}
+        lineage_nodes: Dict[str, Any] = {}
 
         for node_id, node_info in self.manifest_data.get("nodes", {}).items():
             if node_info.get("resource_type") == "model" and node_info.get("compiled_code"):
                 sql = node_info["compiled_code"]
+                
+                # Initialize the result for this node, adding 'depends_on' first and independently.
+                model_lineage_result: Dict[str, Any] = {
+                    "depends_on": node_info.get("depends_on", {})
+                }
                 
                 try:
                     # Pre-process the SQL once per model for efficiency
@@ -273,11 +281,14 @@ class LineageParser:
                     optimized_sql = optimize(qualified_sql, schema=self.schema, dialect='postgres', infer_schema=True)
                     table_alias_map = self._generate_table_alias_map(optimized_sql)
                 except Exception as e:
-                    print(f"Could not parse or qualify model {node_id}: {e}")
+                    if node_id not in self.errors:
+                        self.errors[node_id] = []
+                    self.errors[node_id].append(f"Could not parse or qualify model: {e}")
+                    # Add the node with its dependencies even if SQL parsing fails
+                    lineage_nodes[node_id] = model_lineage_result
                     continue
 
-                model_lineage_result: Dict[str, Any] = {"columns": {}}
-                # Use the helper to get the list of columns to trace.
+                columns_lineage: Dict[str, Any] = {}
                 columns_to_trace = self._get_node_columns(node_id)
                 for column_name in columns_to_trace:
                     try:
@@ -286,15 +297,22 @@ class LineageParser:
                         expanded_sources = self._expand_star_statements(final_sources)
                         
                         if expanded_sources:
-                            model_lineage_result["columns"][column_name] = {
+                            columns_lineage[column_name] = {
                                 "lineage": sorted(list(set(expanded_sources)))
                             }
                     except Exception as e:
-                        print(f"Could not trace column '{column_name}' in model {node_id}: {e}")
+                        if node_id not in self.errors:
+                            self.errors[node_id] = []
+                        self.errors[node_id].append(f"Could not trace column '{column_name}': {e}")
                 
-                if model_lineage_result["columns"]:
-                    full_result[node_id] = model_lineage_result
-        return full_result
+                model_lineage_result["columns"] = columns_lineage
+                lineage_nodes[node_id] = model_lineage_result
+        
+        return {
+            "date_parsed": datetime.now().isoformat(),
+            "errors": self.errors,
+            "nodes": lineage_nodes
+        }
 
 def main() -> None:
     """Main function to execute the parser and print the result."""
@@ -306,10 +324,10 @@ def main() -> None:
     
     # Instantiate the parser with both files and run the analysis
     parser = LineageParser(manifest, catalog)
-    final_lineage = parser.generate_lineage()
+    final_output = parser.generate_lineage()
     
-    if final_lineage:
-        print(json.dumps(final_lineage, indent=4))
+    if final_output:
+        print(json.dumps(final_output, indent=4))
 
 if __name__ == "__main__":
     main()
