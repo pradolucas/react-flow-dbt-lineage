@@ -406,6 +406,22 @@ export default memo(({ id, data, isConnectable, selected }) => {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
+      {/* <--- MODIFIED: Table-level dependency handles are now invisible ---> */}
+      <Handle
+        type="target"
+        position={Position.Left}
+        id="table-dependency-target"
+        isConnectable={isConnectable}
+        style={{ top: "28px", opacity: 0 }}
+      />
+      <Handle
+        type="source"
+        position={Position.Right}
+        id="table-dependency-source"
+        isConnectable={isConnectable}
+        style={{ top: "28px", opacity: 0 }}
+      />
+
       {isHovered && (
         <div
           title="Reveal Neighbors"

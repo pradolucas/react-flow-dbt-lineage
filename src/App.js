@@ -99,6 +99,34 @@ function parseSqlLineageEdges(lineageData, tableData) {
   return Array.from(edges.values());
 }
 
+function parseTableLevelEdges(lineageNodes) {
+  const edges = [];
+  for (const targetModelId in lineageNodes) {
+    const nodeInfo = lineageNodes[targetModelId];
+    if (nodeInfo.depends_on && nodeInfo.depends_on.nodes) {
+      nodeInfo.depends_on.nodes.forEach((sourceModelId) => {
+        const edgeId = `e-table-${sourceModelId}-to-${targetModelId}`;
+        edges.push({
+          id: edgeId,
+          source: sourceModelId,
+          target: targetModelId,
+          sourceHandle: "table-dependency-source",
+          targetHandle: "table-dependency-target",
+          // <--- MODIFIED: Changed edge type to default for a smoother curve --->
+          type: "default",
+          style: {
+            stroke: "#adb5bd",
+            strokeWidth: 2,
+            strokeDasharray: "5 5",
+          },
+          zIndex: -1, // Render behind column-level edges
+        });
+      });
+    }
+  }
+  return edges;
+}
+
 function calculateDynamicLayout(nodesData, edgesData) {
   const nodeDepths = new Map();
   function getDepth(nodeId) {
@@ -172,7 +200,6 @@ function Flow() {
   const [manuallyRevealedNodeIds, setManuallyRevealedNodeIds] = useState(
     new Set()
   );
-  // <--- NEW: State for the lineage date
   const [lineageDate, setLineageDate] = useState("");
 
   // --- EFFECTS ---
@@ -187,13 +214,16 @@ function Flow() {
         const catalogData = await catalogRes.json();
         const lineageJson = await lineageRes.json();
 
-        // <--- NEW: Set the lineage date from the fetched file
         if (lineageJson.date_parsed) {
           setLineageDate(lineageJson.date_parsed);
         }
 
         const tableData = parseDbtNodes(manifestData, catalogData);
-        const parsedEdges = parseSqlLineageEdges(lineageJson.nodes, tableData);
+
+        const columnEdges = parseSqlLineageEdges(lineageJson.nodes, tableData);
+        const tableEdges = parseTableLevelEdges(lineageJson.nodes);
+        const parsedEdges = [...columnEdges, ...tableEdges];
+
         const parsedNodes = calculateDynamicLayout(tableData, parsedEdges);
 
         const allTags = new Set();
@@ -317,10 +347,10 @@ function Flow() {
           animated: isHighlighted,
           style: {
             ...edge.style,
-            stroke: isHighlighted ? "#00A4C9" : "#b1b1b7",
-            strokeWidth: isHighlighted ? 2.5 : 1.5,
+            stroke: isHighlighted ? "#00A4C9" : edge.style.stroke,
+            strokeWidth: isHighlighted ? 2.5 : edge.style.strokeWidth,
           },
-          zIndex: isHighlighted ? 100 : 0,
+          zIndex: isHighlighted ? 100 : edge.zIndex,
         };
       })
     );
@@ -765,7 +795,6 @@ function Flow() {
         )}
       </div>
 
-      {/* <--- NEW: Timestamp display ---> */}
       {lineageDate && (
         <div
           style={{
