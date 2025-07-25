@@ -201,6 +201,7 @@ function Flow() {
   );
   const [lineageDate, setLineageDate] = useState("");
   const [selectedTableConnection, setSelectedTableConnection] = useState(null);
+  const [focusedColumnId, setFocusedColumnId] = useState(null);
 
   // --- EFFECTS ---
   useEffect(() => {
@@ -275,42 +276,66 @@ function Flow() {
   useEffect(() => {
     if (allNodes.length === 0) return;
 
-    const baseNodes = new Set();
-    const primaryFilterIsActive = searchQuery || selectedTags.length > 0;
+    let nodesToShowIds = new Set();
 
-    if (primaryFilterIsActive) {
-      if (searchQuery) {
-        const matchingNodes = allNodes.filter(
-          (node) =>
-            node.data.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            node.data.columns.some((col) =>
-              col.name.toLowerCase().includes(searchQuery.toLowerCase())
-            )
-        );
-        matchingNodes.forEach((n) => baseNodes.add(n.id));
-      } else {
-        const tagNodes = allNodes.filter((n) =>
-          selectedTags.some((tag) => n.data.tags?.includes(tag))
-        );
-        tagNodes.forEach((n) => baseNodes.add(n.id));
-      }
-    }
-
-    manuallyRevealedNodeIds.forEach((id) => baseNodes.add(id));
-
-    if (baseNodes.size === 0) {
-      setNodes(allNodes);
-      setEdges(allEdges);
-      return;
-    }
-
-    const nodesToShowIds = new Set(baseNodes);
-    baseNodes.forEach((nodeId) => {
+    if (focusedColumnId) {
       allEdges.forEach((edge) => {
-        if (edge.source === nodeId) nodesToShowIds.add(edge.target);
-        if (edge.target === nodeId) nodesToShowIds.add(edge.source);
+        if (
+          edge.sourceHandle === focusedColumnId ||
+          edge.targetHandle === focusedColumnId
+        ) {
+          nodesToShowIds.add(edge.source);
+          nodesToShowIds.add(edge.target);
+        }
       });
-    });
+      if (nodesToShowIds.size === 0) {
+        const parentNode = allNodes.find((node) =>
+          node.data.columns.some((col) => col.id === focusedColumnId)
+        );
+        if (parentNode) {
+          nodesToShowIds.add(parentNode.id);
+        }
+      }
+    } else {
+      const baseNodes = new Set();
+      const primaryFilterIsActive = searchQuery || selectedTags.length > 0;
+
+      if (primaryFilterIsActive) {
+        if (searchQuery) {
+          const matchingNodes = allNodes.filter(
+            (node) =>
+              node.data.label
+                .toLowerCase()
+                .includes(searchQuery.toLowerCase()) ||
+              node.data.columns.some((col) =>
+                col.name.toLowerCase().includes(searchQuery.toLowerCase())
+              )
+          );
+          matchingNodes.forEach((n) => baseNodes.add(n.id));
+        } else {
+          const tagNodes = allNodes.filter((n) =>
+            selectedTags.some((tag) => n.data.tags?.includes(tag))
+          );
+          tagNodes.forEach((n) => baseNodes.add(n.id));
+        }
+      }
+
+      manuallyRevealedNodeIds.forEach((id) => baseNodes.add(id));
+
+      if (baseNodes.size === 0) {
+        setNodes(allNodes);
+        setEdges(allEdges);
+        return;
+      }
+
+      nodesToShowIds = new Set(baseNodes);
+      baseNodes.forEach((nodeId) => {
+        allEdges.forEach((edge) => {
+          if (edge.source === nodeId) nodesToShowIds.add(edge.target);
+          if (edge.target === nodeId) nodesToShowIds.add(edge.source);
+        });
+      });
+    }
 
     const filteredNodes = allNodes.filter((n) => nodesToShowIds.has(n.id));
     const filteredEdges = allEdges.filter(
@@ -327,15 +352,20 @@ function Flow() {
     );
     setNodes(relayoutedNodes);
     setEdges(filteredEdges);
-  }, [searchQuery, selectedTags, manuallyRevealedNodeIds, allNodes, allEdges]);
+  }, [
+    searchQuery,
+    selectedTags,
+    manuallyRevealedNodeIds,
+    allNodes,
+    allEdges,
+    focusedColumnId,
+  ]);
 
-  // <--- MODIFIED: Differentiated highlight colors --->
   useEffect(() => {
     setEdges((currentEdges) =>
       currentEdges.map((edge) => {
         const isColumnEdge = !edge.id.startsWith("e-table-");
         const isTableEdge = edge.id.startsWith("e-table-");
-
         const isColumnHighlighted =
           isColumnEdge &&
           (selectedColumns.includes(edge.sourceHandle) ||
@@ -423,6 +453,7 @@ function Flow() {
     setSelectedTags([]);
     setSelectedColumns([]);
     setSelectedTableConnection(null);
+    setFocusedColumnId(null);
     if (query) {
       const newSuggestions = [];
       const addedTables = new Set();
@@ -453,7 +484,6 @@ function Flow() {
 
   const handleSuggestionClick = (suggestion) => {
     const tableLabel = suggestion.tableLabel || suggestion.label;
-    setSearchQuery(tableLabel);
     setManuallyRevealedNodeIds(new Set());
     const targetNode = allNodes.find((node) => node.data.label === tableLabel);
     if (targetNode) {
@@ -461,6 +491,8 @@ function Flow() {
       const isAlreadySelected = selectedTableConnection === targetNode.id;
 
       if (suggestion.type === "table") {
+        setFocusedColumnId(null);
+        setSearchQuery(tableLabel);
         if (isAlreadySelected) {
           setSelectedColumns([]);
           setSelectedTableConnection(null);
@@ -480,6 +512,8 @@ function Flow() {
           setExpandedNodes((prev) => new Set([...prev, ...nodesToExpand]));
         }
       } else {
+        setSearchQuery("");
+        setFocusedColumnId(suggestion.columnId);
         setSelectedColumns([suggestion.columnId]);
         setSelectedTableConnection(null);
         allEdges.forEach((edge) => {
@@ -497,6 +531,7 @@ function Flow() {
     setSuggestions([]);
   };
 
+  // <--- MODIFIED: Interactions within a focused view no longer clear the focus --->
   const handleNodeClick = useCallback(
     (event, node) => {
       const isAlreadySelected =
@@ -506,7 +541,6 @@ function Flow() {
         setSelectedTableConnection(null);
         return;
       }
-
       const targetNode = allNodes.find((n) => n.id === node.id);
       if (!targetNode) return;
 
@@ -540,6 +574,7 @@ function Flow() {
     setManuallyRevealedNodeIds(new Set());
     setSelectedColumns([]);
     setSelectedTableConnection(null);
+    setFocusedColumnId(null);
     setSelectedTags((prevTags) => {
       const newTags = new Set(prevTags);
       if (newTags.has(tag)) newTags.delete(tag);
@@ -549,6 +584,7 @@ function Flow() {
   };
 
   const handleRevealNeighbors = useCallback((nodeId) => {
+    setFocusedColumnId(null); // Revealing neighbors exits column focus mode
     setManuallyRevealedNodeIds((prev) => new Set([...prev, nodeId]));
   }, []);
 
@@ -559,6 +595,7 @@ function Flow() {
     setSelectedColumns([]);
     setManuallyRevealedNodeIds(new Set());
     setSelectedTableConnection(null);
+    setFocusedColumnId(null);
   };
 
   const onConnect = useCallback(
@@ -584,6 +621,7 @@ function Flow() {
       onToggleExpand: handleToggleNodeExpand,
       isExpanded: expandedNodes.has(node.id),
       onRevealNeighbors: handleRevealNeighbors,
+      focusedColumnId: focusedColumnId,
     },
   }));
 

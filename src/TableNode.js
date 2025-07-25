@@ -107,7 +107,6 @@ const columnSearchStyle = {
   alignItems: "center",
 };
 
-// <--- MODIFIED: Style for the lineage expansion button
 const lineageButtonStyle = {
   position: "absolute",
   top: "-18px",
@@ -391,14 +390,30 @@ export default memo(({ id, data, isConnectable, selected }) => {
     ...(selected ? nodeHighlightStyle : {}),
   };
 
+  // <--- MODIFIED: Logic to determine which columns to show --->
+  let columnsToShow;
+  let isColumnFocused = false;
+  const focusedColumn = data.columns.find((c) => c.id === data.focusedColumnId);
+
+  if (focusedColumn) {
+    columnsToShow = [focusedColumn];
+    isColumnFocused = true;
+  } else {
+    const filteredColumns = data.columns.filter((col) =>
+      col.name.toLowerCase().includes(columnSearch.toLowerCase())
+    );
+    const hasManyColumns = filteredColumns.length > MAX_COLUMNS_COLLAPSED;
+    columnsToShow =
+      hasManyColumns && !data.isExpanded
+        ? filteredColumns.slice(0, MAX_COLUMNS_COLLAPSED)
+        : filteredColumns;
+  }
+  // <--- END MODIFICATION --->
+
   const filteredColumns = data.columns.filter((col) =>
     col.name.toLowerCase().includes(columnSearch.toLowerCase())
   );
   const hasManyColumns = filteredColumns.length > MAX_COLUMNS_COLLAPSED;
-  const columnsToShow =
-    hasManyColumns && !data.isExpanded
-      ? filteredColumns.slice(0, MAX_COLUMNS_COLLAPSED)
-      : filteredColumns;
 
   return (
     <div
@@ -406,7 +421,6 @@ export default memo(({ id, data, isConnectable, selected }) => {
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >
-      {/* <--- MODIFIED: Table-level dependency handles are now invisible ---> */}
       <Handle
         type="target"
         position={Position.Left}
@@ -424,7 +438,7 @@ export default memo(({ id, data, isConnectable, selected }) => {
 
       {isHovered && (
         <div
-          title="Reveal Neighbors"
+          title="Reveal Lineage"
           style={lineageButtonStyle}
           onClick={(e) => {
             e.stopPropagation();
@@ -546,71 +560,23 @@ export default memo(({ id, data, isConnectable, selected }) => {
         )}
       </div>
 
-      <div style={columnSearchStyle}>
-        <span
-          style={{
-            position: "absolute",
-            left: "20px",
-            top: "50%",
-            transform: "translateY(-50%)",
-            color: "#9e9e9e",
-          }}
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="14"
-            height="14"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2.5"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            {" "}
-            <circle cx="11" cy="11" r="8"></circle>{" "}
-            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>{" "}
-          </svg>
-        </span>
-        <input
-          type="text"
-          placeholder="Search columns..."
-          value={columnSearch}
-          onChange={(e) => setColumnSearch(e.target.value)}
-          onClick={(e) => e.stopPropagation()}
-          style={{
-            width: "100%",
-            padding: "6px 8px 6px 30px",
-            borderRadius: "4px",
-            border: "1px solid #e2e8f0",
-            fontSize: "12px",
-            boxSizing: "border-box",
-          }}
-        />
-      </div>
-
-      {hasManyColumns && (
-        <div
-          style={expanderStyle}
-          onClick={(e) => {
-            e.stopPropagation();
-            data.onToggleExpand(id);
-          }}
-          onMouseOver={(e) =>
-            (e.currentTarget.style.backgroundColor = "#edf2f7")
-          }
-          onMouseOut={(e) =>
-            (e.currentTarget.style.backgroundColor = "#f7fafc")
-          }
-          title={data.isExpanded ? "Hide columns" : "Show more columns"}
-        >
-          {data.isExpanded ? (
-            <>
-              <span style={expanderTextStyle}>Hide</span>
+      {/* <--- MODIFIED: Hide search and expander when a column is focused ---> */}
+      {!isColumnFocused && (
+        <>
+          <div style={columnSearchStyle}>
+            <span
+              style={{
+                position: "absolute",
+                left: "20px",
+                top: "50%",
+                transform: "translateY(-50%)",
+                color: "#9e9e9e",
+              }}
+            >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
+                width="14"
+                height="14"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -619,31 +585,83 @@ export default memo(({ id, data, isConnectable, selected }) => {
                 strokeLinejoin="round"
               >
                 {" "}
-                <polyline points="18 15 12 9 6 15"></polyline>{" "}
+                <circle cx="11" cy="11" r="8"></circle>{" "}
+                <line x1="21" y1="21" x2="16.65" y2="16.65"></line>{" "}
               </svg>
-            </>
-          ) : (
-            <>
-              <span style={expanderTextStyle}>{`Show ${
-                filteredColumns.length - MAX_COLUMNS_COLLAPSED
-              } more`}</span>
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                width="16"
-                height="16"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                {" "}
-                <polyline points="6 9 12 15 18 9"></polyline>{" "}
-              </svg>
-            </>
+            </span>
+            <input
+              type="text"
+              placeholder="Search columns..."
+              value={columnSearch}
+              onChange={(e) => setColumnSearch(e.target.value)}
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                width: "100%",
+                padding: "6px 8px 6px 30px",
+                borderRadius: "4px",
+                border: "1px solid #e2e8f0",
+                fontSize: "12px",
+                boxSizing: "border-box",
+              }}
+            />
+          </div>
+          {hasManyColumns && (
+            <div
+              style={expanderStyle}
+              onClick={(e) => {
+                e.stopPropagation();
+                data.onToggleExpand(id);
+              }}
+              onMouseOver={(e) =>
+                (e.currentTarget.style.backgroundColor = "#edf2f7")
+              }
+              onMouseOut={(e) =>
+                (e.currentTarget.style.backgroundColor = "#f7fafc")
+              }
+              title={data.isExpanded ? "Hide columns" : "Show more columns"}
+            >
+              {data.isExpanded ? (
+                <>
+                  <span style={expanderTextStyle}>Hide</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {" "}
+                    <polyline points="18 15 12 9 6 15"></polyline>{" "}
+                  </svg>
+                </>
+              ) : (
+                <>
+                  <span style={expanderTextStyle}>{`Show ${
+                    filteredColumns.length - MAX_COLUMNS_COLLAPSED
+                  } more`}</span>
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    {" "}
+                    <polyline points="6 9 12 15 18 9"></polyline>{" "}
+                  </svg>
+                </>
+              )}
+            </div>
           )}
-        </div>
+        </>
       )}
 
       <div style={columnContainerStyle}>
