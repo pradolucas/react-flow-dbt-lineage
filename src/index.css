@@ -8,7 +8,7 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Adiciona um estilo sutil aos handles para melhor visualização */
+/* Adds a subtle style to the handles for better visibility */
 .react-flow__handle {
   width: 8px !important;
   height: 12px !important;
