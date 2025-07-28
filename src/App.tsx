@@ -9,6 +9,7 @@ import { Flow } from './components/Flow/Flow';
 import { TableNodeData, TableData, ColumnData } from './types/dbt';
 import { SearchSuggestion } from './components/Header/SearchBar';
 import { MAX_COLUMNS_COLLAPSED } from './components/Node/TableNode';
+import { getNeighboringNodes } from './utils/graphUtils'; // Corrected import path
 import './App.css';
 
 function App() {
@@ -41,23 +42,6 @@ function App() {
 
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
 
-  const getNeighboringNodes = useCallback((nodeId: string): Set<string> => {
-      const neighbors = new Set([nodeId]);
-      const targetNode = allNodes.find((n) => n.id === nodeId);
-      if (!targetNode) return neighbors;
-      const allColumnIds = targetNode.data.columns.map((col: ColumnData) => col.id);
-      allEdges.forEach((edge) => {
-          if (
-              allColumnIds.includes(edge.sourceHandle!) ||
-              allColumnIds.includes(edge.targetHandle!)
-          ) {
-              neighbors.add(edge.source);
-              neighbors.add(edge.target);
-          }
-      });
-      return neighbors;
-  }, [allNodes, allEdges]);
-
   const handleNodeClick: NodeMouseHandler = useCallback((event: React.MouseEvent, node: Node<TableNodeData>) => {
     const isDeselecting = selectedTableConnection === node.id && selectedColumns.length > 0;
     
@@ -70,9 +54,9 @@ function App() {
     setNodes((nds: Node<TableData>[]) => nds.map((n: Node<TableData>) => ({ ...n, selected: n.id === node.id })));
     setSelectedTableConnection(node.id);
     setSelectedColumns(node.data.columns.map((c: ColumnData) => c.id));
-    const neighbors = getNeighboringNodes(node.id);
+    const neighbors = getNeighboringNodes(node.id, allNodes, allEdges);
     setExpandedNodes(prev => new Set([...prev, ...neighbors]));
-  }, [selectedTableConnection, selectedColumns, clearSelections, getNeighboringNodes, setNodes]);
+  }, [selectedTableConnection, selectedColumns, clearSelections, setNodes, allNodes, allEdges]);
 
   // This effect runs once when the data is loaded to handle URL params
   useEffect(() => {
@@ -89,7 +73,7 @@ function App() {
             const columnExists = parentNode.data.columns.some(c => c.id === columnParam);
             if (columnExists) {
                 clearSelections();
-                const neighbors = getNeighboringNodes(parentNode.id);
+                const neighbors = getNeighboringNodes(parentNode.id, allNodes, allEdges);
                 setExpandedNodes(prev => new Set([...prev, ...neighbors]));
                 setFocusedColumnId(columnParam);
                 setSelectedColumns([columnParam]);
@@ -108,6 +92,7 @@ function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allNodes, isLoading]);
 
+  // Re-added the missing handleSearchChange function
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const query = event.target.value;
     clearFilters();
@@ -144,7 +129,7 @@ function App() {
     const targetNode = allNodes.find((node) => node.data.label === tableLabel);
 
     if (targetNode) {
-      const neighbors = getNeighboringNodes(targetNode.id);
+      const neighbors = getNeighboringNodes(targetNode.id, allNodes, allEdges);
       setExpandedNodes(prev => new Set([...prev, ...neighbors]));
       if (suggestion.type === 'table') {
         setSearchQuery(suggestion.label || '');
@@ -234,13 +219,13 @@ function App() {
           if (newSet.has(nodeId)) {
               newSet.delete(nodeId);
           } else {
-              const nodesToExpand = getNeighboringNodes(nodeId);
-              nodesToExpand.forEach(id => newSet.add(id));
+              const nodesToExpand = getNeighboringNodes(nodeId, allNodes, allEdges);
+              nodesToExpand.forEach((id: string) => newSet.add(id)); // Added explicit type for 'id'
           }
           return newSet;
       });
-  }, [getNeighboringNodes]);
-
+  }, [allNodes, allEdges, setExpandedNodes]);
+  
   const handleRevealNeighbors = useCallback((nodeId: string) => {
     setFocusedColumnId(null);
     setManuallyRevealedNodeIds(prev => new Set([...prev, nodeId]));
@@ -289,16 +274,16 @@ function App() {
         onSearchChange={handleSearchChange}
         suggestions={suggestions}
         onSuggestionClick={handleSuggestionClick}
+        onSearchFocus={handleSearchFocus}
         allNodes={allNodes}
         availableTags={availableTags}
         selectedTags={selectedTags}
         onTagSelectionChange={handleTagSelectionChange}
+        isTagDropdownOpen={isTagDropdownOpen}
+        onToggleTagDropdown={handleToggleTagDropdown}
         showClearButton={searchQuery !== '' || selectedTags.length > 0 || selectedColumns.length > 0 || manuallyRevealedNodeIds.size > 0}
         onClearFilters={clearFilters}
         lineageDate={lineageDate}
-        isTagDropdownOpen={isTagDropdownOpen}
-        onToggleTagDropdown={handleToggleTagDropdown}
-        onSearchFocus={handleSearchFocus}
       />
       <Flow
         nodes={nodesWithClickHandlers}
