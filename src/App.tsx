@@ -69,7 +69,7 @@ function App() {
     
     setNodes((nds: Node<TableData>[]) => nds.map((n: Node<TableData>) => ({ ...n, selected: n.id === node.id })));
     setSelectedTableConnection(node.id);
-    setSelectedColumns(node.data.columns.map((c: ColumnData) => c.id)); // This is the key fix
+    setSelectedColumns(node.data.columns.map((c: ColumnData) => c.id));
     const neighbors = getNeighboringNodes(node.id);
     setExpandedNodes(prev => new Set([...prev, ...neighbors]));
   }, [selectedTableConnection, selectedColumns, clearSelections, getNeighboringNodes, setNodes]);
@@ -83,20 +83,22 @@ function App() {
       const tagsParam = params.get("tags");
 
       if (columnParam) {
-        clearSelections();
-        const parentNode = allNodes.find(n => n.data.columns.some(c => c.id === columnParam));
+        const parentNode = allNodes.find(n => columnParam.startsWith(n.data.label + '-'));
+        
         if (parentNode) {
-          const neighbors = getNeighboringNodes(parentNode.id);
-          setExpandedNodes(prev => new Set([...prev, ...neighbors]));
-          setFocusedColumnId(columnParam);
-          setSelectedColumns([columnParam]);
+            const columnExists = parentNode.data.columns.some(c => c.id === columnParam);
+            if (columnExists) {
+                clearSelections();
+                const neighbors = getNeighboringNodes(parentNode.id);
+                setExpandedNodes(prev => new Set([...prev, ...neighbors]));
+                setFocusedColumnId(columnParam);
+                setSelectedColumns([columnParam]);
+            }
         }
       } else if (searchParam) {
         const targetNode = allNodes.find(n => n.data.label.toLowerCase() === searchParam.toLowerCase());
         if (targetNode) {
-          // Set the search query to populate the search bar and trigger filters
           setSearchQuery(searchParam);
-          // Simulate the click to select the node and its neighbors
           handleNodeClick({} as React.MouseEvent, targetNode as Node<TableNodeData>);
         }
       } else if (tagsParam) {
@@ -224,7 +226,7 @@ function App() {
     if (nodesToExpand.size > 0) {
         setExpandedNodes(prev => new Set([...prev, ...nodesToExpand]));
     }
-  }, [allNodes, allEdges, expandedNodes, selectedColumns, clearSelections]);
+  }, [allNodes, allEdges, expandedNodes, selectedColumns, clearSelections, setSelectedColumns]);
   
   const handleToggleNodeExpand = useCallback((nodeId: string) => {
       setExpandedNodes(prev => {

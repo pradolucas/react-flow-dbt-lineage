@@ -1,5 +1,5 @@
 // src/hooks/useGraphFilters.ts
-import { useState, useEffect, useCallback, useRef } from 'react'; // Import useRef
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNodesState, useEdgesState, Edge, Node } from 'reactflow';
 import { FlowEdge, TableMap, TableData, ColumnData } from '../types/dbt';
 import { calculateDynamicLayout } from '../services/layoutService';
@@ -58,7 +58,7 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
   const clearSelections = useCallback(() => {
     setSelectedColumns([]);
     setSelectedTableConnection(null);
-    setFocusedColumnId(null);
+    // setFocusedColumnId(null); // DO NOT clear the focus context here
     setNodes((nds) => nds.map(n => ({ ...n, selected: false })));
   }, [setNodes]);
 
@@ -68,14 +68,19 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
     setSuggestions([]);
     setManuallyRevealedNodeIds(new Set());
     setExpandedNodes(new Set());
+    setFocusedColumnId(null); // DO clear the focus context with the main clear button
     clearSelections();
   }, [clearSelections, setExpandedNodes]);
 
-  // Main filtering logic... (remains unchanged)
+  // Main filtering and highlighting logic
   useEffect(() => {
-    if (allNodes.length === 0) return;
+    if (isLoading || allNodes.length === 0) return;
     let nodesToShowIds = new Set<string>();
+    let isFiltering = false;
+
+    // Priority 1: A column is focused
     if (focusedColumnId) {
+      isFiltering = true;
       allEdges.forEach((edge) => {
         if (edge.sourceHandle === focusedColumnId || edge.targetHandle === focusedColumnId) {
           nodesToShowIds.add(edge.source);
@@ -86,10 +91,13 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
         const parentNode = allNodes.find((node) => node.data.columns.some((col: ColumnData) => col.id === focusedColumnId));
         if (parentNode) nodesToShowIds.add(parentNode.id);
       }
-    } else {
+    } 
+    // Priority 2: Search, tags, or manual reveals are active
+    else {
       const baseNodes = new Set<string>();
       const primaryFilterIsActive = searchQuery || selectedTags.length > 0;
       if (primaryFilterIsActive) {
+        isFiltering = true;
         if (searchQuery) {
           const matchingNodes = allNodes.filter((node) => node.data.label.toLowerCase() === searchQuery.toLowerCase() || node.data.columns.some((col: ColumnData) => col.name.toLowerCase().includes(searchQuery.toLowerCase())));
           matchingNodes.forEach((n) => baseNodes.add(n.id));
@@ -98,45 +106,38 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
           tagNodes.forEach((n) => baseNodes.add(n.id));
         }
       }
-      manuallyRevealedNodeIds.forEach((id) => baseNodes.add(id));
-      if (baseNodes.size === 0 && (primaryFilterIsActive || manuallyRevealedNodeIds.size > 0)) {
+      if (manuallyRevealedNodeIds.size > 0) {
+        isFiltering = true;
+        manuallyRevealedNodeIds.forEach((id) => baseNodes.add(id));
+      }
+
+      if (baseNodes.size === 0 && isFiltering) {
          setNodes([]);
          setEdges([]);
          return;
       }
-      if (baseNodes.size === 0) {
-        setNodes(allNodes);
-        setEdges(allEdges);
-        return;
-      }
-      nodesToShowIds = new Set(baseNodes);
-      baseNodes.forEach((nodeId) => {
-        allEdges.forEach((edge) => {
-          if (edge.source === nodeId) nodesToShowIds.add(edge.target);
-          if (edge.target === nodeId) nodesToShowIds.add(edge.source);
+      
+      if (isFiltering) {
+        nodesToShowIds = new Set(baseNodes);
+        baseNodes.forEach((nodeId) => {
+            allEdges.forEach((edge) => {
+            if (edge.source === nodeId) nodesToShowIds.add(edge.target);
+            if (edge.target === nodeId) nodesToShowIds.add(edge.source);
+            });
         });
-      });
+      }
     }
-    const filteredNodes = allNodes.filter((n) => nodesToShowIds.has(n.id));
-    const filteredEdges = allEdges.filter((e) => nodesToShowIds.has(e.source) && nodesToShowIds.has(e.target));
-    const nodesDataObject = filteredNodes.reduce((acc, node) => {
-      acc[node.id] = tableMap[node.id];
-      return acc;
-    }, {} as TableMap);
-    const relayoutedNodes = calculateDynamicLayout(nodesDataObject, filteredEdges);
-    setNodes(relayoutedNodes);
-    setEdges(filteredEdges);
-  }, [searchQuery, selectedTags, manuallyRevealedNodeIds, allNodes, allEdges, focusedColumnId, tableMap, setNodes, setEdges]);
-  
-  // Rewritten Edge Highlighting Logic
-  useEffect(() => {
-    setEdges((currentEdges) =>
-      currentEdges.map((edge): Edge => {
+
+    const finalNodes = isFiltering ? allNodes.filter((n) => nodesToShowIds.has(n.id)) : allNodes;
+    let finalEdges = isFiltering ? allEdges.filter((e) => nodesToShowIds.has(e.source) && nodesToShowIds.has(e.target)) : allEdges;
+    
+    // Apply highlighting styles to the final set of edges
+    finalEdges = finalEdges.map((edge): Edge => {
         const isTableEdge = edge.id.startsWith("e-table-");
         const isColumnEdge = !!(edge.sourceHandle && edge.targetHandle && !isTableEdge);
 
         const isColumnHighlighted = isColumnEdge && (selectedColumns.includes(edge.sourceHandle!) || selectedColumns.includes(edge.targetHandle!));
-        const isTableHighlighted = isTableEdge && (selectedTableConnection === edge.id || selectedTableConnection === edge.source || selectedTableConnection === edge.target);
+        const isTableHighlighted = isTableEdge && (selectedTableConnection === edge.source || selectedTableConnection === edge.target);
 
         const defaultStyle = {
           stroke: isTableEdge ? "#adb5bd" : "#b1b1b7",
@@ -161,10 +162,32 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
           style: style,
           zIndex: (isColumnHighlighted || isTableHighlighted) ? 1000 : -1,
         };
-      })
-    );
-  }, [selectedColumns, selectedTableConnection, setEdges]);
+    });
 
+    const nodesDataObject = finalNodes.reduce((acc, node) => {
+      acc[node.id] = tableMap[node.id];
+      return acc;
+    }, {} as TableMap);
+
+    const relayoutedNodes = calculateDynamicLayout(nodesDataObject, finalEdges);
+    setNodes(relayoutedNodes);
+    setEdges(finalEdges);
+
+  }, [
+    searchQuery, 
+    selectedTags, 
+    manuallyRevealedNodeIds, 
+    allNodes, 
+    allEdges, 
+    focusedColumnId, 
+    tableMap, 
+    setNodes, 
+    setEdges, 
+    selectedTableConnection, 
+    isLoading,
+    selectedColumns
+  ]);
+  
   return {
     nodes,
     edges,
