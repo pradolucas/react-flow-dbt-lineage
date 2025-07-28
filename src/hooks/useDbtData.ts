@@ -1,7 +1,7 @@
 // src/hooks/useDbtData.ts
 import { useState, useEffect } from 'react';
 import { Node, Edge } from 'reactflow';
-import { TableMap, LineageData, TableData } from '../types';
+import { TableMap, LineageData, TableData } from '../types/index';
 import { parseDbtNodes, parseSqlLineageEdges, parseTableLevelEdges } from '../services/dbtParsingService';
 import { calculateDynamicLayout } from '../services/layoutService';
 
@@ -60,9 +60,9 @@ export function useDbtData(): DbtData {
         const parsedEdges = [...columnEdges, ...tableEdges];
         setAllEdges(parsedEdges);
 
-        // Calculate initial layout
-        const parsedNodes = calculateDynamicLayout(tables, parsedEdges);
-        setAllNodes(parsedNodes);
+        // Calculate the initial layout once and set the nodes with positions
+        const positionedNodes = calculateDynamicLayout(tables, parsedEdges);
+        setAllNodes(positionedNodes);
 
         // Extract all unique tags for the filter dropdown
         const allTags = new Set<string>();
