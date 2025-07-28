@@ -1,75 +1,12 @@
 // src/components/Node/TableNode.tsx
-import React, { memo, useState } from "react";
+import React, { memo, useState, useCallback } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
 import styles from "./TableNode.module.css";
-import { DataTypeIcon } from "./DataTypeIcon";
-import { ColumnData, TableNodeData } from "../../types";
+import { ColumnData, TableNodeData } from "../../types/index";
+import { NodeHeader } from './NodeHeader';
+import { NodeColumn } from './NodeColumn';
 
 export const MAX_COLUMNS_COLLAPSED = 3;
-
-// --- SUB-COMPONENTS ---
-
-const NodeHeader: React.FC<{ data: TableNodeData }> = ({ data }) => {
-  const isSource = data.resource_type === "source";
-  const headerClass = isSource ? styles.sourceHeader : styles.modelHeader;
-
-  const SourceIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <ellipse cx="12" cy="5" rx="9" ry="3"></ellipse>
-      <path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"></path>
-      <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"></path>
-    </svg>
-  );
-
-  const ModelIcon = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
-      <line x1="3" y1="9" x2="21" y2="9"></line>
-      <line x1="9" y1="21" x2="9" y2="9"></line>
-    </svg>
-  );
-
-  const DocsIcon = () => (
-     <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
-        <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
-    </svg>
-  );
-
-  return (
-    <div className={`${styles.headerBase} ${headerClass}`}>
-      <div className={styles.headerInfo}>
-        <div className={styles.iconStyle}>{isSource ? <SourceIcon /> : <ModelIcon />}</div>
-        <div className={styles.headerText} title={`${data.database}.${data.schema}.${data.label}`}>
-          <div className={styles.tableName}>{data.label}</div>
-          <div className={styles.dbSchema}>
-            {data.database}.{data.schema}
-          </div>
-        </div>
-      </div>
-      {data.dbtDocsUrl && (
-        <a href={data.dbtDocsUrl} target="_blank" rel="noopener noreferrer" title={`Open docs for ${data.label}`} onClick={(e) => e.stopPropagation()} className={styles.docsLink}>
-          <DocsIcon />
-        </a>
-      )}
-    </div>
-  );
-};
-
-const Column: React.FC<{ column: ColumnData; isSelected: boolean; onColumnClick: (id: string) => void; isConnectable: boolean; }> = ({ column, isSelected, onColumnClick, isConnectable }) => {
-  const columnClasses = `${styles.columnBase} ${isSelected ? styles.columnSelected : ""}`;
-  
-  return (
-    <div className={columnClasses} onClick={(e) => { e.stopPropagation(); onColumnClick(column.id); }}>
-      <Handle type="target" position={Position.Left} id={column.id} className={styles.handle} isConnectable={isConnectable} />
-      <div className={styles.columnContent}>
-        <span className={styles.columnName} title={column.name}>{column.name}</span>
-        <DataTypeIcon type={column.type} />
-      </div>
-      <Handle type="source" position={Position.Right} id={column.id} className={styles.handle} isConnectable={isConnectable} />
-    </div>
-  );
-};
 
 const NodeFooter: React.FC<{ tags: string[] }> = ({ tags }) => {
   if (!tags || tags.length === 0) return null;
@@ -83,7 +20,7 @@ const NodeFooter: React.FC<{ tags: string[] }> = ({ tags }) => {
 };
 
 const LineageButton: React.FC<{ onClick: (e: React.MouseEvent) => void }> = ({ onClick }) => (
-    <div title="Reveal Lineage" className={styles.lineageButton} onClick={onClick}>
+    <div title="Reveal Lineage" className={`${styles.lineageButton} nodrag`} onClick={onClick}>
         <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#374151" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <line x1="6" y1="3" x2="6" y2="15"></line>
             <circle cx="18" cy="6" r="3"></circle>
@@ -93,49 +30,52 @@ const LineageButton: React.FC<{ onClick: (e: React.MouseEvent) => void }> = ({ o
     </div>
 );
 
-
-// --- MAIN COMPONENT ---
 const TableNode: React.FC<NodeProps<TableNodeData>> = ({ id, data, selected, isConnectable }) => {
   const [columnSearch, setColumnSearch] = useState("");
   const [isHovered, setIsHovered] = useState(false);
 
   const nodeClasses = `${styles.node} ${selected ? styles.nodeHighlight : ""}`;
 
-  let columnsToShow: ColumnData[];
-  let isColumnFocused = false;
+  const handleLineageButtonClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    data.onRevealNeighbors(id);
+  }, [data, id]);
+
+  const handleToggleExpand = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    data.onToggleExpand(id);
+  }, [data, id]);
+
+  const handleSearchChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setColumnSearch(e.target.value);
+  }, []);
+  
+  const handleSearchClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+  }, []);
+
   const focusedColumn = data.columns.find((c) => c.id === data.focusedColumnId);
+  const filteredColumns = focusedColumn 
+    ? [focusedColumn] 
+    : data.columns.filter((col) => col.name.toLowerCase().includes(columnSearch.toLowerCase()));
 
-  if (focusedColumn) {
-    columnsToShow = [focusedColumn];
-    isColumnFocused = true;
-  } else {
-    const filteredColumns = data.columns.filter((col) =>
-      col.name.toLowerCase().includes(columnSearch.toLowerCase())
-    );
-    const hasManyColumns = filteredColumns.length > MAX_COLUMNS_COLLAPSED;
-    columnsToShow =
-      hasManyColumns && !data.isExpanded
-        ? filteredColumns.slice(0, MAX_COLUMNS_COLLAPSED)
-        : filteredColumns;
-  }
-
-  const filteredColumns = data.columns.filter((col) =>
-    col.name.toLowerCase().includes(columnSearch.toLowerCase())
-  );
-  const hasManyColumns = filteredColumns.length > MAX_COLUMNS_COLLAPSED;
+  const hasManyColumns = !focusedColumn && filteredColumns.length > MAX_COLUMNS_COLLAPSED;
+  const columnsToShow = hasManyColumns && !data.isExpanded 
+    ? filteredColumns.slice(0, MAX_COLUMNS_COLLAPSED) 
+    : filteredColumns;
 
   return (
     <div className={nodeClasses} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
       <Handle type="target" position={Position.Left} id="table-dependency-target" className={styles.tableHandle} isConnectable={isConnectable} />
       <Handle type="source" position={Position.Right} id="table-dependency-source" className={styles.tableHandle} isConnectable={isConnectable} />
 
-      {isHovered && <LineageButton onClick={(e) => { e.stopPropagation(); data.onRevealNeighbors(id); }} />}
+      {isHovered && <LineageButton onClick={handleLineageButtonClick} />}
 
       <NodeHeader data={data} />
 
-      {!isColumnFocused && (
+      {!focusedColumn && (
         <>
-          <div className={styles.columnSearchWrapper}>
+          <div className={`${styles.columnSearchWrapper} nodrag`}>
              <span className={styles.searchIcon}>
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="11" cy="11" r="8"></circle>
@@ -146,13 +86,13 @@ const TableNode: React.FC<NodeProps<TableNodeData>> = ({ id, data, selected, isC
               type="text"
               placeholder="Search columns..."
               value={columnSearch}
-              onChange={(e) => setColumnSearch(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
+              onChange={handleSearchChange}
+              onClick={handleSearchClick}
               className={styles.columnSearchInput}
             />
           </div>
           {hasManyColumns && (
-            <div className={styles.expander} onClick={(e) => { e.stopPropagation(); data.onToggleExpand(id); }} title={data.isExpanded ? "Hide columns" : "Show more columns"}>
+            <div className={`${styles.expander} nodrag`} onClick={handleToggleExpand} title={data.isExpanded ? "Hide columns" : "Show more columns"}>
               {data.isExpanded ? (
                 <>
                   <span className={styles.expanderText}>Hide</span>
@@ -173,9 +113,9 @@ const TableNode: React.FC<NodeProps<TableNodeData>> = ({ id, data, selected, isC
         </>
       )}
 
-      <div className={styles.columnContainer}>
+      <div className="nodrag">
         {columnsToShow.map((column) => (
-          <Column
+          <NodeColumn
             key={column.id}
             column={column}
             isSelected={data.selectedColumns.includes(column.id)}

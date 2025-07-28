@@ -44,7 +44,7 @@ export function parseDbtNodes(
       schema: node.schema,
       columns: columns,
       tags: node.tags || [],
-      dbtDocsUrl: `https://your-dbt-server.com/#!/model/${nodeId}`, // Replace with your actual dbt docs URL
+      dbtDocsUrl: `https://your-dbt-server.com/#!/${node.resource_type}/${nodeId}`, // Replace with your actual dbt docs URL
     };
   }
   return tables;

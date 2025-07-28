@@ -75,6 +75,7 @@
   flex-shrink: 0;
   margin-left: 10px;
   transition: opacity 0.2s;
+  cursor: pointer;
 }
 
 .docsLink:hover {
