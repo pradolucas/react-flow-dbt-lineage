@@ -1,4 +1,5 @@
 // src/App.tsx
+
 import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { Node, Edge, NodeMouseHandler, EdgeMouseHandler } from 'reactflow';
 import { useDbtData } from './hooks/useDbtData';
@@ -77,17 +78,33 @@ function App() {
   useEffect(() => {
     if (allNodes.length > 0 && !isLoading) {
       const params = new URLSearchParams(window.location.search);
+      const columnParam = params.get("column");
       const searchParam = params.get("search");
-      if (searchParam) {
+      const tagsParam = params.get("tags");
+
+      if (columnParam) {
+        clearSelections();
+        const parentNode = allNodes.find(n => n.data.columns.some(c => c.id === columnParam));
+        if (parentNode) {
+          const neighbors = getNeighboringNodes(parentNode.id);
+          setExpandedNodes(prev => new Set([...prev, ...neighbors]));
+          setFocusedColumnId(columnParam);
+          setSelectedColumns([columnParam]);
+        }
+      } else if (searchParam) {
         const targetNode = allNodes.find(n => n.data.label.toLowerCase() === searchParam.toLowerCase());
         if (targetNode) {
-          // Simulate a click on the node found from the URL
+          // Set the search query to populate the search bar and trigger filters
+          setSearchQuery(searchParam);
+          // Simulate the click to select the node and its neighbors
           handleNodeClick({} as React.MouseEvent, targetNode as Node<TableNodeData>);
         }
+      } else if (tagsParam) {
+        setSelectedTags(tagsParam.split(','));
       }
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allNodes, isLoading]); // Depends on allNodes and isLoading
+  }, [allNodes, isLoading]);
 
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const query = event.target.value;

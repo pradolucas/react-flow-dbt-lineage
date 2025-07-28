@@ -1,5 +1,5 @@
 // src/hooks/useGraphFilters.ts
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react'; // Import useRef
 import { useNodesState, useEdgesState, Edge, Node } from 'reactflow';
 import { FlowEdge, TableMap, TableData, ColumnData } from '../types/dbt';
 import { calculateDynamicLayout } from '../services/layoutService';
@@ -15,7 +15,7 @@ interface GraphFilterProps {
 export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setExpandedNodes }: GraphFilterProps) {
   const [nodes, setNodes, onNodesChange] = useNodesState<TableData>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState([]);
-  
+
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [selectedColumns, setSelectedColumns] = useState<string[]>([]);
@@ -23,28 +23,26 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
   const [focusedColumnId, setFocusedColumnId] = useState<string | null>(null);
   const [manuallyRevealedNodeIds, setManuallyRevealedNodeIds] = useState<Set<string>>(new Set());
   const [suggestions, setSuggestions] = useState<any[]>([]);
-
-  // Read from URL on initial load
-  useEffect(() => {
-    if (allNodes.length > 0) {
-      const params = new URLSearchParams(window.location.search);
-      const searchParam = params.get("search");
-      const tagsParam = params.get("tags");
-
-      if (searchParam) {
-        setSearchQuery(searchParam);
-      } else if (tagsParam) {
-        setSelectedTags(tagsParam.split(","));
-      }
-    }
-  }, [allNodes]);
+  
+  const isInitialLoad = useRef(true); // Add a ref to track the initial load
 
   // Write to URL when filters change
   useEffect(() => {
+    // If the data is loading, do nothing.
     if (isLoading) return;
+    
+    // If it's the first time this effect runs after data has loaded,
+    // set the ref to false and skip writing to the URL.
+    // This allows the App.tsx effect to read the initial URL params first.
+    if (isInitialLoad.current) {
+      isInitialLoad.current = false;
+      return;
+    }
 
     const params = new URLSearchParams();
-    if (searchQuery) {
+    if (focusedColumnId) {
+      params.set("column", focusedColumnId);
+    } else if (searchQuery) {
       params.set("search", searchQuery);
     } else if (selectedTags.length > 0) {
       params.set("tags", selectedTags.join(","));
@@ -54,7 +52,7 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
       ? `${window.location.pathname}?${params.toString()}`
       : window.location.pathname;
     window.history.replaceState({ path: newUrl }, "", newUrl);
-  }, [searchQuery, selectedTags, isLoading]);
+  }, [focusedColumnId, searchQuery, selectedTags, isLoading]);
 
 
   const clearSelections = useCallback(() => {
