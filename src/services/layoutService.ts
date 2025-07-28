@@ -1,6 +1,6 @@
 // src/services/layoutService.ts
 import { Node } from 'reactflow';
-import { TableMap, TableData, FlowEdge } from '../types/dbt';
+import { TableMap, TableData, FlowEdge } from '../types';
 
 const HORIZONTAL_SPACING = 480;
 const VERTICAL_SPACING = 400;

@@ -1,7 +1,7 @@
 // src/hooks/useGraphFilters.ts
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNodesState, useEdgesState, Edge, Node } from 'reactflow';
-import { FlowEdge, TableMap, TableData, ColumnData } from '../types/dbt';
+import { FlowEdge, TableMap, TableData, ColumnData } from '../types/index'; // Corrected import path
 import { calculateDynamicLayout } from '../services/layoutService';
 
 interface GraphFilterProps {
@@ -24,43 +24,12 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
   const [manuallyRevealedNodeIds, setManuallyRevealedNodeIds] = useState<Set<string>>(new Set());
   const [suggestions, setSuggestions] = useState<any[]>([]);
   
-  const isInitialLoad = useRef(true); // Add a ref to track the initial load
-
-  // Write to URL when filters change
-  useEffect(() => {
-    // If the data is loading, do nothing.
-    if (isLoading) return;
-    
-    // If it's the first time this effect runs after data has loaded,
-    // set the ref to false and skip writing to the URL.
-    // This allows the App.tsx effect to read the initial URL params first.
-    if (isInitialLoad.current) {
-      isInitialLoad.current = false;
-      return;
-    }
-
-    const params = new URLSearchParams();
-    if (focusedColumnId) {
-      params.set("column", focusedColumnId);
-    } else if (searchQuery) {
-      params.set("search", searchQuery);
-    } else if (selectedTags.length > 0) {
-      params.set("tags", selectedTags.join(","));
-    }
-
-    const newUrl = params.toString()
-      ? `${window.location.pathname}?${params.toString()}`
-      : window.location.pathname;
-    window.history.replaceState({ path: newUrl }, "", newUrl);
-  }, [focusedColumnId, searchQuery, selectedTags, isLoading]);
-
-
+  const isInitialLoad = useRef(true);
+  
   const clearSelections = useCallback(() => {
     setSelectedColumns([]);
     setSelectedTableConnection(null);
-    // setFocusedColumnId(null); // DO NOT clear the focus context here
-    setNodes((nds) => nds.map(n => ({ ...n, selected: false })));
-  }, [setNodes]);
+  }, []);
 
   const clearFilters = useCallback(() => {
     setSearchQuery('');
@@ -68,7 +37,7 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
     setSuggestions([]);
     setManuallyRevealedNodeIds(new Set());
     setExpandedNodes(new Set());
-    setFocusedColumnId(null); // DO clear the focus context with the main clear button
+    setFocusedColumnId(null); 
     clearSelections();
   }, [clearSelections, setExpandedNodes]);
 
@@ -169,7 +138,13 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
       return acc;
     }, {} as TableMap);
 
-    const relayoutedNodes = calculateDynamicLayout(nodesDataObject, finalEdges);
+    let relayoutedNodes = calculateDynamicLayout(nodesDataObject, finalEdges);
+
+    relayoutedNodes = relayoutedNodes.map(node => ({
+      ...node,
+      selected: node.id === selectedTableConnection,
+    }));
+
     setNodes(relayoutedNodes);
     setEdges(finalEdges);
 
@@ -181,7 +156,7 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
     allEdges, 
     focusedColumnId, 
     tableMap, 
-    setNodes, 
+    setNodes,
     setEdges, 
     selectedTableConnection, 
     isLoading,
@@ -193,8 +168,6 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
     edges,
     onNodesChange,
     onEdgesChange,
-    setNodes,
-    setEdges,
     searchQuery,
     setSearchQuery,
     selectedTags,

@@ -3,7 +3,7 @@ import React, { memo, useState } from "react";
 import { Handle, Position, NodeProps } from "reactflow";
 import styles from "./TableNode.module.css";
 import { DataTypeIcon } from "./DataTypeIcon";
-import { ColumnData, TableNodeData } from "../../types/dbt";
+import { ColumnData, TableNodeData } from "../../types";
 
 export const MAX_COLUMNS_COLLAPSED = 3;
 

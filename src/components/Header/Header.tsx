@@ -5,7 +5,7 @@ import { TagFilter } from './TagFilter';
 import { ClearButton } from './ClearButton';
 import styles from './Header.module.css';
 import { Node } from 'reactflow';
-import { TableData } from '../../types/dbt';
+import { TableData } from '../../types';
 
 interface HeaderProps {
   // Search Props

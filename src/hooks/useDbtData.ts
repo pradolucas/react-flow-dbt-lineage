@@ -1,7 +1,7 @@
 // src/hooks/useDbtData.ts
 import { useState, useEffect } from 'react';
 import { Node, Edge } from 'reactflow';
-import { TableMap, LineageData, TableData } from '../types/dbt';
+import { TableMap, LineageData, TableData } from '../types';
 import { parseDbtNodes, parseSqlLineageEdges, parseTableLevelEdges } from '../services/dbtParsingService';
 import { calculateDynamicLayout } from '../services/layoutService';
 

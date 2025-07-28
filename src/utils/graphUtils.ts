@@ -1,6 +1,6 @@
 // src/utils/graphUtils.ts
 import { Node, Edge } from 'reactflow';
-import { ColumnData, TableData } from '../types/dbt';
+import { ColumnData, TableData } from '../types';
 
 export const getNeighboringNodes = (
   nodeId: string,

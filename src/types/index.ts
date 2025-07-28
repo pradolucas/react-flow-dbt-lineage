@@ -1,4 +1,4 @@
-// src/types/dbt.ts
+// src/types/index.ts
 
 import { Node, Edge } from 'reactflow';
 

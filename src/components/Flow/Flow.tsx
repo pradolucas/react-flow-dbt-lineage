@@ -13,7 +13,7 @@ import ReactFlow, {
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import TableNode from '../Node/TableNode';
-import { TableNodeData } from '../../types/dbt'; // Corrected import path for the type
+import { TableNodeData } from '../../types';
 
 const nodeTypes = { tableNode: TableNode };
 

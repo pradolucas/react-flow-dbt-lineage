@@ -4,12 +4,13 @@ import React, { useCallback, useMemo, useState, useEffect } from 'react';
 import { Node, Edge, NodeMouseHandler, EdgeMouseHandler } from 'reactflow';
 import { useDbtData } from './hooks/useDbtData';
 import { useGraphFilters } from './hooks/useGraphFilters';
+import { useUrlSync } from './hooks/useUrlSync';
 import { Header } from './components/Header/Header';
 import { Flow } from './components/Flow/Flow';
-import { TableNodeData, TableData, ColumnData } from './types/dbt';
+import { TableNodeData, TableData, ColumnData } from './types/index';
 import { SearchSuggestion } from './components/Header/SearchBar';
 import { MAX_COLUMNS_COLLAPSED } from './components/Node/TableNode';
-import { getNeighboringNodes } from './utils/graphUtils'; // Corrected import path
+import { getNeighboringNodes } from './utils/graphUtils';
 import './App.css';
 
 function App() {
@@ -21,7 +22,6 @@ function App() {
     edges,
     onNodesChange,
     onEdgesChange,
-    setNodes,
     searchQuery,
     setSearchQuery,
     selectedTags,
@@ -42,23 +42,24 @@ function App() {
 
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
 
+  useUrlSync({ isLoading, focusedColumnId, searchQuery, selectedTags });
+
   const handleNodeClick: NodeMouseHandler = useCallback((event: React.MouseEvent, node: Node<TableNodeData>) => {
-    const isDeselecting = selectedTableConnection === node.id && selectedColumns.length > 0;
-    
-    clearSelections();
+    const isDeselecting = selectedTableConnection === node.id;
 
     if (isDeselecting) {
+      clearSelections();
       return;
     }
     
-    setNodes((nds: Node<TableData>[]) => nds.map((n: Node<TableData>) => ({ ...n, selected: n.id === node.id })));
+    clearSelections();
     setSelectedTableConnection(node.id);
     setSelectedColumns(node.data.columns.map((c: ColumnData) => c.id));
     const neighbors = getNeighboringNodes(node.id, allNodes, allEdges);
     setExpandedNodes(prev => new Set([...prev, ...neighbors]));
-  }, [selectedTableConnection, selectedColumns, clearSelections, setNodes, allNodes, allEdges]);
+  }, [selectedTableConnection, clearSelections, allNodes, allEdges, setSelectedTableConnection, setSelectedColumns, setExpandedNodes]);
 
-  // This effect runs once when the data is loaded to handle URL params
+  // This effect for reading the URL on initial load has been updated
   useEffect(() => {
     if (allNodes.length > 0 && !isLoading) {
       const params = new URLSearchParams(window.location.search);
@@ -82,17 +83,21 @@ function App() {
       } else if (searchParam) {
         const targetNode = allNodes.find(n => n.data.label.toLowerCase() === searchParam.toLowerCase());
         if (targetNode) {
+          // Set state directly instead of calling handleNodeClick to avoid race conditions
+          clearSelections();
           setSearchQuery(searchParam);
-          handleNodeClick({} as React.MouseEvent, targetNode as Node<TableNodeData>);
+          setSelectedTableConnection(targetNode.id);
+          setSelectedColumns(targetNode.data.columns.map(c => c.id));
+          const neighbors = getNeighboringNodes(targetNode.id, allNodes, allEdges);
+          setExpandedNodes(prev => new Set([...prev, ...neighbors]));
         }
       } else if (tagsParam) {
         setSelectedTags(tagsParam.split(','));
       }
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allNodes, isLoading]);
 
-  // Re-added the missing handleSearchChange function
   const handleSearchChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const query = event.target.value;
     clearFilters();
@@ -220,7 +225,7 @@ function App() {
               newSet.delete(nodeId);
           } else {
               const nodesToExpand = getNeighboringNodes(nodeId, allNodes, allEdges);
-              nodesToExpand.forEach((id: string) => newSet.add(id)); // Added explicit type for 'id'
+              nodesToExpand.forEach((id: string) => newSet.add(id));
           }
           return newSet;
       });

@@ -1,6 +1,6 @@
 // src/services/dbtParsingService.ts
 import { MarkerType } from 'reactflow';
-import { ManifestNode, CatalogNode, LineageData, TableMap, FlowEdge } from '../types/dbt';
+import { ManifestNode, CatalogNode, LineageData, TableMap, FlowEdge } from '../types';
 
 /**
  * Parses nodes from dbt's manifest and catalog files into a unified table map.
