@@ -167,7 +167,7 @@ function App() {
         setSelectedTableConnection(edge.id);
       }
     }
-  }, [selectedTableConnection, clearSelections]);
+  }, [selectedTableConnection, clearSelections, setSelectedTableConnection]);
 
   const handlePaneClick = () => {
     clearSelections();

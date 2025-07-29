@@ -69,7 +69,11 @@
   composes: truncateText;
 }
 
-.docsLink {
+.docsButton {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0;
   color: white;
   opacity: 1;
   flex-shrink: 0;
@@ -78,7 +82,7 @@
   cursor: pointer;
 }
 
-.docsLink:hover {
+.docsButton:hover {
     opacity: 0.8;
 }
 
@@ -112,7 +116,7 @@
 .columnContent {
     display: flex;
     align-items: center;
-    justify-content: space-between; /* This is the change */
+    justify-content: space-between;
     overflow: hidden;
     flex-grow: 1;
 }

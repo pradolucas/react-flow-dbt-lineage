@@ -49,13 +49,13 @@ export const NodeHeader: React.FC<{ data: TableNodeData }> = ({ data }) => {
         </div>
       </div>
       {data.dbtDocsUrl && (
-        <a 
-          title={`Open docs for ${data.label}`} 
-          onClick={handleDocsClick} 
-          className={`${styles.docsLink} nodrag`}
+        <button
+          title={`Open docs for ${data.label}`}
+          onClick={handleDocsClick}
+          className={`${styles.docsButton} nodrag`}
         >
           <DocsIcon />
-        </a>
+        </button>
       )}
     </div>
   );

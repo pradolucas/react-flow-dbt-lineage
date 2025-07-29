@@ -1,6 +1,6 @@
 // src/hooks/useGraphFilters.ts
 import { useState, useEffect, useCallback } from 'react';
-import { useNodesState, useEdgesState, Edge, Node } from 'reactflow';
+import { useNodesState, useEdgesState, Node } from 'reactflow';
 import { FlowEdge, TableMap, TableData } from '../types/index';
 import { calculateDynamicLayout } from '../services/layoutService';
 
@@ -144,7 +144,7 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
 
   }, [isLoading, allNodes, allEdges, tableMap, getVisibleSubset, focusedColumnId, selectedTableConnection, selectedColumns, setNodes, setEdges]);
   
-  // **NEW**: Effect for recalculating layout
+  // Effect for recalculating layout
   useEffect(() => {
     if (layoutTrigger === 0 || isLoading) return;
 
