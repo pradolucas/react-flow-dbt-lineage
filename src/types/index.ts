@@ -74,6 +74,7 @@ export interface TableNodeData extends TableData {
   onColumnClick: (columnId: string) => void;
   onToggleExpand: (nodeId: string) => void;
   onRevealNeighbors: (nodeId: string) => void;
+  visibleColumnIds?: Set<string>; // New property
 }
 
 export type TableMap = Record<string, TableData>;

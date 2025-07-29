@@ -1,7 +1,7 @@
 // src/hooks/useGraphFilters.ts
 import { useState, useEffect, useCallback } from 'react';
 import { useNodesState, useEdgesState, Edge, Node } from 'reactflow';
-import { FlowEdge, TableMap, TableData } from '../types/index';
+import { FlowEdge, TableMap, TableData, ColumnData } from '../types/index';
 
 interface GraphFilterProps {
   allNodes: Node<TableData>[];
@@ -38,7 +38,6 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
     clearSelections();
   }, [clearSelections, setExpandedNodes]);
 
-  // Set the initial nodes and edges once they are loaded.
   useEffect(() => {
     if (allNodes.length > 0) {
       setNodes(allNodes);
@@ -52,14 +51,12 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
   }, [allEdges, setEdges]);
 
 
-  // This effect manages visibility and styling without recalculating layout.
   useEffect(() => {
     if (isLoading || allNodes.length === 0) return;
 
-    // 1. Determine which nodes should be visible based on filters.
     const isFiltering = focusedColumnId || searchQuery || selectedTags.length > 0 || manuallyRevealedNodeIds.size > 0;
-    
     let visibleNodeIds = isFiltering ? new Set<string>() : new Set<string>(allNodes.map(n => n.id));
+    const visibleColumnsByNode = new Map<string, Set<string>>();
 
     if (isFiltering) {
         let nodesToShowIds = new Set<string>();
@@ -74,6 +71,22 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
                 const parentNode = allNodes.find((node) => node.data.columns.some((col) => col.id === focusedColumnId));
                 if (parentNode) nodesToShowIds.add(parentNode.id);
             }
+
+            // **NEW**: Determine exactly which columns should be visible in each node
+            const connectedColumnIds = new Set<string>([focusedColumnId]);
+            allEdges.forEach(edge => {
+                if (edge.sourceHandle === focusedColumnId && edge.targetHandle) connectedColumnIds.add(edge.targetHandle);
+                if (edge.targetHandle === focusedColumnId && edge.sourceHandle) connectedColumnIds.add(edge.sourceHandle);
+            });
+            nodesToShowIds.forEach(nodeId => {
+                const nodeData = tableMap[nodeId];
+                const columnsForNode = new Set<string>();
+                nodeData?.columns.forEach(col => {
+                    if (connectedColumnIds.has(col.id)) columnsForNode.add(col.id);
+                });
+                if (columnsForNode.size > 0) visibleColumnsByNode.set(nodeId, columnsForNode);
+            });
+
         } else {
             const baseNodes = new Set<string>();
             if (searchQuery) {
@@ -95,16 +108,23 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
         visibleNodeIds = nodesToShowIds;
     }
     
-    // 2. Update node visibility and styles.
     setNodes(prevNodes =>
-        prevNodes.map(node => ({
-            ...node,
-            hidden: !visibleNodeIds.has(node.id),
-            selected: node.id === selectedTableConnection,
-        }))
+        prevNodes.map(node => {
+            const isVisible = visibleNodeIds.has(node.id);
+            // **NEW**: Pass the set of visible column IDs down to the node data
+            const visibleColumnIdsForNode = focusedColumnId ? visibleColumnsByNode.get(node.id) : undefined;
+            return {
+                ...node,
+                hidden: !isVisible,
+                selected: node.id === selectedTableConnection,
+                data: {
+                  ...node.data,
+                  visibleColumnIds: visibleColumnIdsForNode,
+                }
+            };
+        })
     );
 
-    // 3. Update edge styles and visibility.
     setEdges(prevEdges => prevEdges.map((edge) => {
         const isVisible = visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target);
         const isTableEdge = edge.id.startsWith("e-table-");
@@ -113,18 +133,13 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
         const isColumnHighlighted = isColumnEdge && (selectedColumns.includes(edge.sourceHandle!) || selectedColumns.includes(edge.targetHandle!));
         const isTableHighlighted = isTableEdge && (selectedTableConnection === edge.source || selectedTableConnection === edge.target);
 
-        // **FIX:** Establish a base style on every run to ensure styles are reset.
         let style: React.CSSProperties = {};
-        if (isTableEdge) {
-            style = { stroke: "#adb5bd", strokeWidth: 2, strokeDasharray: "5 5" };
-        } else {
-            style = { stroke: "#b1b1b7", strokeWidth: 1.5 };
-        }
+        if (isTableEdge) style = { stroke: "#adb5bd", strokeWidth: 2, strokeDasharray: "5 5" };
+        else style = { stroke: "#b1b1b7", strokeWidth: 1.5 };
 
         let animated = false;
         let zIndex = -1;
 
-        // Conditionally apply highlight styles
         if (isColumnHighlighted) {
             style.stroke = '#00A4C9';
             style.strokeWidth = 2.5;
@@ -138,19 +153,14 @@ export function useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setEx
             zIndex = 1000;
         }
         
-        return {
-          ...edge,
-          hidden: !isVisible,
-          animated: animated,
-          style: style,
-          zIndex: zIndex,
-        };
+        return { ...edge, hidden: !isVisible, animated: animated, style: style, zIndex: zIndex };
     }));
 
   }, [
     isLoading,
     allNodes,
     allEdges,
+    tableMap,
     searchQuery, 
     selectedTags, 
     manuallyRevealedNodeIds, 

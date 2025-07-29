@@ -54,15 +54,21 @@ const TableNode: React.FC<NodeProps<TableNodeData>> = ({ id, data, selected, isC
     e.stopPropagation();
   }, []);
 
-  const focusedColumn = data.columns.find((c) => c.id === data.focusedColumnId);
-  const filteredColumns = focusedColumn 
-    ? [focusedColumn] 
-    : data.columns.filter((col) => col.name.toLowerCase().includes(columnSearch.toLowerCase()));
+  // **NEW**: Logic to determine which columns to show has been updated
+  let columnsToRender: ColumnData[];
+  if (data.visibleColumnIds) {
+    // If a specific set of columns is passed, show only them.
+    columnsToRender = data.columns.filter(col => data.visibleColumnIds!.has(col.id));
+  } else {
+    // Otherwise, use the local column search input to filter.
+    columnsToRender = data.columns.filter((col) => col.name.toLowerCase().includes(columnSearch.toLowerCase()));
+  }
 
-  const hasManyColumns = !focusedColumn && filteredColumns.length > MAX_COLUMNS_COLLAPSED;
+  const showColumnControls = !data.visibleColumnIds;
+  const hasManyColumns = showColumnControls && columnsToRender.length > MAX_COLUMNS_COLLAPSED;
   const columnsToShow = hasManyColumns && !data.isExpanded 
-    ? filteredColumns.slice(0, MAX_COLUMNS_COLLAPSED) 
-    : filteredColumns;
+    ? columnsToRender.slice(0, MAX_COLUMNS_COLLAPSED) 
+    : columnsToRender;
 
   return (
     <div className={nodeClasses} onMouseEnter={() => setIsHovered(true)} onMouseLeave={() => setIsHovered(false)}>
@@ -72,8 +78,9 @@ const TableNode: React.FC<NodeProps<TableNodeData>> = ({ id, data, selected, isC
       {isHovered && <LineageButton onClick={handleLineageButtonClick} />}
 
       <NodeHeader data={data} />
-
-      {!focusedColumn && (
+      
+      {/* **NEW**: The column search and expander are now hidden when a column is focused */}
+      {showColumnControls && (
         <>
           <div className={`${styles.columnSearchWrapper} nodrag`}>
              <span className={styles.searchIcon}>
@@ -102,7 +109,7 @@ const TableNode: React.FC<NodeProps<TableNodeData>> = ({ id, data, selected, isC
                 </>
               ) : (
                 <>
-                  <span className={styles.expanderText}>{`Show ${filteredColumns.length - MAX_COLUMNS_COLLAPSED} more`}</span>
+                  <span className={styles.expanderText}>{`Show ${columnsToRender.length - MAX_COLUMNS_COLLAPSED} more`}</span>
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="6 9 12 15 18 9"></polyline>
                   </svg>
