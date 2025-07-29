@@ -16,6 +16,7 @@ import './App.css';
 function App() {
   const { allNodes, allEdges, tableMap, availableTags, lineageDate, isLoading, error } = useDbtData();
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
+  const [layoutTrigger, setLayoutTrigger] = useState(0); // New state to trigger layout
 
   const {
     nodes,
@@ -38,7 +39,7 @@ function App() {
     setSuggestions,
     clearFilters,
     clearSelections,
-  } = useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setExpandedNodes });
+  } = useGraphFilters({ allNodes, allEdges, tableMap, isLoading, setExpandedNodes, layoutTrigger });
 
   const [isTagDropdownOpen, setIsTagDropdownOpen] = useState(false);
 
@@ -59,7 +60,6 @@ function App() {
     setExpandedNodes(prev => new Set([...prev, ...neighbors]));
   }, [selectedTableConnection, clearSelections, allNodes, allEdges, setSelectedTableConnection, setSelectedColumns, setExpandedNodes]);
 
-  // This effect for reading the URL on initial load has been updated
   useEffect(() => {
     if (allNodes.length > 0 && !isLoading) {
       const params = new URLSearchParams(window.location.search);
@@ -69,7 +69,6 @@ function App() {
 
       if (columnParam) {
         const parentNode = allNodes.find(n => columnParam.startsWith(n.data.label + '-'));
-        
         if (parentNode) {
             const columnExists = parentNode.data.columns.some(c => c.id === columnParam);
             if (columnExists) {
@@ -78,18 +77,19 @@ function App() {
                 setExpandedNodes(prev => new Set([...prev, ...neighbors]));
                 setFocusedColumnId(columnParam);
                 setSelectedColumns([columnParam]);
+                setLayoutTrigger(t => t + 1); // Recalculate layout from URL
             }
         }
       } else if (searchParam) {
         const targetNode = allNodes.find(n => n.data.label.toLowerCase() === searchParam.toLowerCase());
         if (targetNode) {
-          // Set state directly instead of calling handleNodeClick to avoid race conditions
           clearSelections();
           setSearchQuery(searchParam);
           setSelectedTableConnection(targetNode.id);
           setSelectedColumns(targetNode.data.columns.map(c => c.id));
           const neighbors = getNeighboringNodes(targetNode.id, allNodes, allEdges);
           setExpandedNodes(prev => new Set([...prev, ...neighbors]));
+          setLayoutTrigger(t => t + 1); // Recalculate layout from URL
         }
       } else if (tagsParam) {
         setSelectedTags(tagsParam.split(','));
@@ -146,6 +146,7 @@ function App() {
       }
     }
     setSuggestions([]);
+    setLayoutTrigger(t => t + 1); // **NEW**: Trigger layout recalculation
   };
   
   const handleTagSelectionChange = (tag: string) => {
@@ -260,7 +261,7 @@ function App() {
         isExpanded: expandedNodes.has(node.id),
         onRevealNeighbors: handleRevealNeighbors,
         focusedColumnId: focusedColumnId,
-      } as TableNodeData,
+      },
     }));
   }, [nodes, selectedColumns, handleToggleNodeExpand, expandedNodes, focusedColumnId, handleColumnClick, handleRevealNeighbors]);
   
