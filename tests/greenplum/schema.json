@@ -1,0 +1,29 @@
+{
+  "my_gp_db": {
+    "raw_data": {
+      "users": {
+        "id": "INT",
+        "name": "VARCHAR",
+        "email": "VARCHAR",
+        "created_at": "TIMESTAMP"
+      },
+      "orders": {
+        "id": "INT",
+        "user_id": "INT",
+        "amount": "DECIMAL",
+        "order_date": "DATE"
+      },
+      "customer_profiles": {
+        "customer_id": "INT",
+        "profile_data": "JSON"
+      },
+      "sensor_logs": {
+        "log_id": "SERIAL",
+        "device_id": "VARCHAR",
+        "reading_time": "TIMESTAMP",
+        "payload": "JSONB"
+      }
+    },
+    "public": {}
+  }
+}
