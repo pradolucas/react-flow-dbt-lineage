@@ -3,7 +3,7 @@ SET SEARCH_PATH to public;
 
 CREATE TABLE customer_order_details
 WITH (appendonly=true, orientation=column, compresslevel=5)
-AS
+AS (
 WITH customer_base AS (
   SELECT
     c.customer_id,
@@ -30,9 +30,8 @@ SELECT
   os.number_of_orders,
   os.total_revenue,
   os.last_order_date,
-  row_to_json(cb.*) as customer_snapshot
+  row_to_json(cb.*) as customer_snapshot,
+  concat(cb.*) as customer_snapshot_concat,
   cb.*
-
 FROM customer_base cb
-JOIN order_summary os ON cb.customer_id = os.user_id;
-
+JOIN order_summary os ON cb.customer_id = os.user_id);
