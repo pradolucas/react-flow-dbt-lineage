@@ -6,7 +6,7 @@ import sqlglot.lineage as lineage
 from sqlglot.schema import MappingSchema
 from typing import Dict, List, Set, Any, Optional
 from datetime import datetime
-from GreenplumDialect import Greenplum
+from GreenplumDialect import Greenplum ## Added as dialect for sqlglot
 
 sqlglot.dialects.__all__.append({"Greenplum": "greenplum", "Dialect": "dialect", "Dialects": "dialect"})
 
@@ -149,7 +149,6 @@ class GreenplumLineageParser:
         lineage_nodes: Dict[str, Any],
     ):
         """Analyzes a single CREATE TABLE statement and populates the lineage result."""
-        target_table_fqn = self._get_table_fqn(expr.this, default_db, default_schema) ## TODO get full name only after qualification? TODO test if default_schema is being fetch
         select_statement = expr.expression
 
         if not select_statement:
@@ -170,10 +169,12 @@ class GreenplumLineageParser:
                 catalog=default_db,
             )
         except Exception as e:
+            target_table_fqn = self._get_table_fqn(expr.this, default_db, default_schema) ## TODO get full name only after qualification? TODO test if default_schema is being fetch
             self.errors.setdefault(target_table_fqn, []).append(f"Could not analyze statement: {e}")
             return
 
         # Table-level dependencies
+        target_table_fqn = self._get_table_fqn(expr.this, default_db, default_schema) 
         cte_names = {cte.alias for cte in optimized_select.find_all(exp.CTE)}
         dependencies = {
             self._get_table_fqn(t, default_db, default_schema)
@@ -257,7 +258,6 @@ def main() -> None:
     sql_script = load_sql_file(sql_file)
     schema_data = load_json_file(schema_file)
     
-
     parser = GreenplumLineageParser(schema_data)
     final_output = parser.generate_lineage(sql_script)
     
