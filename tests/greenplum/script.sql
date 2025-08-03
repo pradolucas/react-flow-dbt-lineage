@@ -34,4 +34,4 @@ SELECT
   concat(cb.*) as customer_snapshot_concat,
   cb.*
 FROM customer_base cb
-JOIN order_summary os ON cb.customer_id = os.user_id);
+JOIN order_summary os ON cb.customer_id = os.user_id) DISTRIBUTED BY (customer_id);

@@ -6,7 +6,9 @@ import sqlglot.lineage as lineage
 from sqlglot.schema import MappingSchema
 from typing import Dict, List, Set, Any, Optional
 from datetime import datetime
-import sys
+from GreenplumDialect import Greenplum
+
+sqlglot.dialects.__all__.append({"Greenplum": "greenplum", "Dialect": "dialect", "Dialects": "dialect"})
 
 def load_json_file(filepath: str) -> Dict[str, Any]:
     """
@@ -36,7 +38,7 @@ class GreenplumLineageParser:
     """
     def __init__(self, schema_data: Dict[str, Any]):
         """Initializes the parser with schema data."""
-        self.schema = MappingSchema(schema_data, dialect="postgres")
+        self.schema = MappingSchema(schema_data, dialect="greenplum")
         self.errors: Dict[str, List[str]] = {}
 
     def _get_table_fqn(
@@ -46,6 +48,7 @@ class GreenplumLineageParser:
         # In sqlglot, 'catalog' is the database and 'db' is the schema.
         catalog = table_expr.catalog or default_db
         schema = table_expr.db or default_schema
+        # print(table_expr.db, default_schema)
         table = table_expr.this.name
 
         # Filter out any None parts and join.
@@ -55,7 +58,7 @@ class GreenplumLineageParser:
         ]
         return ".".join(parts)
 
-    def _expand_stars_in_functions(self, expression: exp.Expression) -> exp.Expression:
+    def _qualify_stars_inside_functions(self, expression: exp.Expression) -> exp.Expression:
         """
         Finds and expands "table.*" expressions used inside function calls,
         e.g., transforms `row_to_json(c.*)` into `row_to_json((c.col1, c.col2))`.
@@ -146,7 +149,7 @@ class GreenplumLineageParser:
         lineage_nodes: Dict[str, Any],
     ):
         """Analyzes a single CREATE TABLE statement and populates the lineage result."""
-        target_table_fqn = self._get_table_fqn(expr.this, default_db, default_schema)
+        target_table_fqn = self._get_table_fqn(expr.this, default_db, default_schema) ## TODO get full name only after qualification? TODO test if default_schema is being fetch
         select_statement = expr.expression
 
         if not select_statement:
@@ -158,11 +161,11 @@ class GreenplumLineageParser:
         
         try:
             # Prepare the query for lineage analysis
-            expanded_select = self._expand_stars_in_functions(select_statement)
+            expanded_select = self._qualify_stars_inside_functions(select_statement)
             optimized_select = optimizer.optimize(
                 expanded_select,
                 schema=self.schema,
-                dialect="postgres",
+                dialect="greenplum",
                 db=default_schema,
                 catalog=default_db,
             )
@@ -187,7 +190,7 @@ class GreenplumLineageParser:
                     sql=optimized_select,
                     schema=self.schema,
                     column=column_name,
-                    dialect="postgres",
+                    dialect="greenplum",
                 )
                 final_sources = self._trace_lineage_recursively(node, default_db, default_schema)
                 if final_sources:
@@ -208,7 +211,8 @@ class GreenplumLineageParser:
             # Look for statements like: SET search_path TO my_schema;
             # return expr.find(exp.Set).expression.this.right.name
             if (isinstance(expr, exp.Set)
-                and isinstance(expr.expression, exp.EQ) 
+                and isinstance(expr.expressions[0], exp.SetItem)
+                and isinstance(expr.expressions[0].this, exp.EQ) 
                 and expr.expressions[0].this.left.name.upper() == 'SEARCH_PATH' ):
                 return expr.expressions[0].this.right.name    
         return None
@@ -227,7 +231,7 @@ class GreenplumLineageParser:
         """
         lineage_nodes: Dict[str, Any] = {}
         try:
-            expressions = sqlglot.parse(sql_script, read="postgres")
+            expressions = sqlglot.parse(sql_script, read="greenplum")
         except Exception as e:
             self.errors["script"] = [f"Failed to parse the entire SQL script: {e}"]
             return self._build_final_output(lineage_nodes)
